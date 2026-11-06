@@ -1,0 +1,105 @@
+/*
+ * DESIGN TOKENS: the single source of truth for every visual value in the app.
+ *
+ * Rules (enforced by `npm run check:tokens`):
+ *  - Components and other CSS files use ONLY var(--token). No hex colors, rgb(), or raw px/rem
+ *    values outside this file.
+ *  - Tier 1 (primitives) are raw values. Tier 2 (semantic) reference primitives and are the only
+ *    tokens components may use. To restyle the app, edit this file only.
+ *  - Dark mode redefines semantic tokens only.
+ */
+
+:root {
+  /* ---- Tier 1: primitives ---- */
+  --p-neutral-0: #ffffff;
+  --p-neutral-50: #f6f7f9;
+  --p-neutral-100: #eceef2;
+  --p-neutral-200: #d9dce3;
+  --p-neutral-500: #6b7280;
+  --p-neutral-700: #374151;
+  --p-neutral-900: #111827;
+  --p-neutral-950: #0b0f19;
+  --p-blue-500: #3b6cf6;
+  --p-blue-600: #2c55d6;
+  --p-red-600: #d12f3a;
+  --p-amber-600: #b7791f;
+  --p-green-600: #22804a;
+
+  --p-space-1: 0.25rem;
+  --p-space-2: 0.5rem;
+  --p-space-3: 0.75rem;
+  --p-space-4: 1rem;
+  --p-space-6: 1.5rem;
+  --p-space-8: 2rem;
+
+  --p-radius-sm: 0.25rem;
+  --p-radius-md: 0.5rem;
+  --p-radius-lg: 0.75rem;
+
+  --p-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --p-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --p-text-sm: 0.8125rem;
+  --p-text-md: 0.9375rem;
+  --p-text-lg: 1.125rem;
+  --p-text-xl: 1.5rem;
+
+  /* ---- Tier 2: semantic (components use these) ---- */
+  --color-bg: var(--p-neutral-50);
+  --color-surface: var(--p-neutral-0);
+  --color-surface-sunken: var(--p-neutral-100);
+  --color-border: var(--p-neutral-200);
+  --color-text: var(--p-neutral-900);
+  --color-text-muted: var(--p-neutral-500);
+  --color-accent: var(--p-blue-500);
+  --color-accent-hover: var(--p-blue-600);
+  --color-on-accent: var(--p-neutral-0);
+  --color-highlight: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  --color-error: var(--p-red-600);
+  --color-warning: var(--p-amber-600);
+  --color-success: var(--p-green-600);
+
+  --space-xs: var(--p-space-1);
+  --space-sm: var(--p-space-2);
+  --space-md: var(--p-space-4);
+  --space-lg: var(--p-space-6);
+  --space-xl: var(--p-space-8);
+
+  --radius-control: var(--p-radius-sm);
+  --radius-card: var(--p-radius-md);
+
+  --font-body: var(--p-font-sans);
+  --font-code: var(--p-font-mono);
+  --text-small: var(--p-text-sm);
+  --text-body: var(--p-text-md);
+  --text-heading: var(--p-text-lg);
+  --text-title: var(--p-text-xl);
+
+  --layout-sidebar-width: 18rem;
+  --layout-panel-width: 34rem;
+  --layout-resizer-width: 0.5rem;
+  --layout-suggest-max-height: 14rem;
+  --shadow-popover: 0 0.25rem 0.75rem color-mix(in srgb, var(--color-text) 20%, transparent);
+  --layout-content-max-width: 40rem;
+  --focus-ring-width: 2px;
+  --letter-spacing-label: 0.04em;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-bg: var(--p-neutral-950);
+    --color-surface: var(--p-neutral-900);
+    --color-surface-sunken: var(--p-neutral-950);
+    --color-border: var(--p-neutral-700);
+    --color-text: var(--p-neutral-50);
+    --color-text-muted: var(--p-neutral-200);
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-bg: var(--p-neutral-950);
+  --color-surface: var(--p-neutral-900);
+  --color-surface-sunken: var(--p-neutral-950);
+  --color-border: var(--p-neutral-700);
+  --color-text: var(--p-neutral-50);
+  --color-text-muted: var(--p-neutral-200);
+}

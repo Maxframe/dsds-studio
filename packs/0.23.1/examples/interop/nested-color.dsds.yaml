@@ -1,0 +1,57 @@
+# The interop example that actually demonstrates DSDS's central claim about
+# tokens — that an entry points at a real DTCG file rather than restating
+# it — against a DTCG file with the features a real token set actually has:
+# group-level `$type` inheritance, an alias value (`{color.palette.blue-500}`),
+# and a `$extensions` payload from a design tool. color-action-primary.dsds.yaml
+# (this directory's other token example) is the simple case, one flat token
+# with no aliasing; this is the harder one.
+#
+# 0.20.0 has no `token-group`/nested-children concept (that model flattened to
+# top-level entries — see the CHANGELOG's 0.20.0 entry), so the alias
+# relationship nested-color.tokens.json's own `$value` expresses structurally
+# is restated here as an explicit `uses` ref between two flat token
+# entries instead of a parent/child tree.
+schemaVersion: "0.23.1"
+
+name: Nested Color Tokens
+
+entries:
+  - kind: token
+    id: color.palette.blue-500
+    name: Blue 500
+    description: A primitive blue value in the palette scale. No usage meaning of its own — semantic tokens like color.action.primary alias it.
+    tokenType: color
+    source: ./nested-color.tokens.json
+
+  - kind: token
+    id: color.palette.blue-600
+    name: Blue 600
+    description: A primitive blue value in the palette scale, one step darker than blue-500. No usage meaning of its own.
+    tokenType: color
+    source: ./nested-color.tokens.json
+
+  - kind: token
+    id: color.action.primary
+    name: Action Primary
+    description: Background for the single primary action on a surface. Its value is a DTCG alias into the palette (`{color.palette.blue-500}`) — the primitive and the semantic meaning live in two different places on purpose, so the palette can be re-themed without touching what "primary action" means.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - level: should
+            statement: Use for at most one action per surface — two competing primary actions split the user's attention and dilute the visual hierarchy the color exists to create.
+    uses:
+      - to: color.palette.blue-500
+        note: Resolves its value from this primitive via the DTCG file's own alias syntax, not a separate DSDS-level indirection.
+    tokenType: color
+    source: ./nested-color.tokens.json
+
+  - kind: token
+    id: color.action.primary-hover
+    name: Action Primary Hover
+    description: Hover state for the primary action background.
+    uses:
+      - to: color.palette.blue-600
+        note: Resolves its value from this primitive via the DTCG file's own alias syntax.
+    tokenType: color
+    source: ./nested-color.tokens.json

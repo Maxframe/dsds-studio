@@ -1,0 +1,209 @@
+.project-shell {
+  display: grid;
+  grid-template-columns:
+    var(--layout-sidebar-width) var(--layout-resizer-width) minmax(0, 1fr) var(
+      --layout-resizer-width
+    )
+    var(--layout-panel-width);
+  height: 100vh;
+}
+.pane {
+  overflow-y: auto;
+  padding: var(--space-md);
+  min-width: 0;
+}
+.pane--sidebar {
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+}
+.pane--panel {
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+}
+.pane-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-small);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+  color: var(--color-text-muted);
+}
+.tree-group {
+  margin-bottom: var(--space-md);
+}
+.tree-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-control);
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tree-item:hover {
+  background: var(--color-surface-sunken);
+}
+.tree-item--active {
+  background: var(--color-surface-sunken);
+  font-weight: 600;
+}
+.tree-id {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+.editor-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+.editor-head h1 {
+  margin: 0;
+  font-size: var(--text-title);
+}
+.finding {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-sm) 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.finding:hover {
+  background: var(--color-surface-sunken);
+}
+.finding-where {
+  color: var(--color-text-muted);
+  font-family: var(--font-code);
+  font-size: var(--text-small);
+  word-break: break-all;
+}
+.picker {
+  max-width: var(--layout-content-max-width);
+  margin: var(--space-xl) auto;
+  padding: 0 var(--space-md);
+}
+.row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+.stack > * + * {
+  margin-top: var(--space-sm);
+}
+
+/* Right column: the live YAML view on top, validation underneath. */
+.pane--right {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-border);
+}
+.yaml-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.yaml-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.yaml-status {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-small);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+.yaml-status--error {
+  color: var(--color-error);
+}
+.validation-panel {
+  flex: 0 1 40%;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+.tree-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.tree-row .tree-item {
+  flex: 1;
+  min-width: 0;
+}
+.tree-row-actions {
+  visibility: hidden;
+}
+.tree-row:hover .tree-row-actions,
+.tree-row:focus-within .tree-row-actions,
+.tree-row-actions:has(.confirm) {
+  visibility: visible;
+}
+/* Once armed, the confirmation gets its own full-width line under the row. */
+.tree-row-actions:has(.confirm) {
+  flex-basis: 100%;
+  padding: 0 var(--space-sm) var(--space-sm);
+}
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+.confirm-hint {
+  font-size: var(--text-small);
+  color: var(--color-text-muted);
+}
+
+/* Syntax colors for the YAML editor (CodeMirror's class highlighter), from tokens. */
+.tok-propertyName {
+  color: var(--color-accent);
+}
+.tok-string,
+.tok-string2 {
+  color: var(--color-success);
+}
+.tok-number,
+.tok-bool,
+.tok-null,
+.tok-atom {
+  color: var(--color-warning);
+}
+.tok-comment {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.tok-meta,
+.tok-punctuation {
+  color: var(--color-text-muted);
+}
+
+/* Draggable divider between columns. */
+.resizer {
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+.resizer:hover,
+.resizer:focus-visible,
+.resizer:active {
+  background: var(--color-highlight);
+  outline: none;
+}

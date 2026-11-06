@@ -1,0 +1,65 @@
+schemaVersion: "0.23.1"
+
+name: Pizza Party Design System
+
+entries:
+  - kind: component
+    id: button
+    name: Button
+    description: Triggers an action.
+    sections:
+      - kind: guidelines
+        for: all
+        framing: when-to-use
+        items:
+          - level: should
+            statement: Use for an action the user takes on the current screen, like placing an order.
+
+      - kind: guidelines
+        for: all
+        items:
+          # Borrowed from another entry: the rule lives on the pattern
+          # that owns it, so it never had to move into `shared`.
+          - refs:
+              - to: order-confirmation#name-the-order
+                rel: same-as
+
+      - kind: guidelines
+        for: all
+        title: Accessibility
+        tags: [accessibility]
+        items:
+          # The tag identifies this section's topic. The shared rule
+          # supplies the statement and level without duplicating them.
+          - refs:
+              - to: shared-a11y#touch-target
+                rel: same-as
+    uses:
+      - to: order-confirmation
+
+  # A pattern, and the rule it owns. Several components follow this one.
+  - kind: entry
+    id: order-confirmation
+    name: Order Confirmation
+    description: The pattern for confirming an order before it reaches the kitchen.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: name-the-order
+            level: must
+            statement: The confirming action names what is being ordered, rather than just saying "OK".
+            checkedBy: manual
+
+shared:
+  - id: shared-a11y
+    name: Shared Accessibility Rules
+    description: Cross-cutting accessibility rules, stated once and referenced from every entry they apply to.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: touch-target
+            level: must
+            statement: Minimum touch target 44x44px.
+            checkedBy: assisted

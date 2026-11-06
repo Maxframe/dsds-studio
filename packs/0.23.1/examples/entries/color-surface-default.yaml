@@ -1,0 +1,22 @@
+kind: token
+id: color.surface.default
+name: Surface Default
+description: The base background color for a standard content surface.
+
+metadata:
+  tags: [color, surface]
+  since: 1.0.0
+  status: {status: stable}
+  group: color.surface
+
+sections:
+  - kind: guidelines
+    for: all
+    items:
+      - level: should
+        statement: Use as the default page or card background - not for a surface that's already raised or sunken relative to it.
+
+tokenType: color
+# A JSON Pointer fragment names this token's node in the DTCG file. Without one,
+# the token's id is read as its path, which works here too.
+source: ./tokens.dtcg.json#/color/surface/default

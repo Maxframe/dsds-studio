@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.env
+*.log
+# User projects live here; each is its own git repo, not part of the app repo.
+workspace/*
+!workspace/.gitkeep

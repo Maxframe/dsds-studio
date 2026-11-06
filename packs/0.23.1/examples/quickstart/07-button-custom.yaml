@@ -1,0 +1,9 @@
+kind: component
+id: button
+name: Button
+description: Triggers an action.
+
+$extensions:
+  com.figma:
+    context: Links this entry to its source Figma component for design-file lookups.
+    nodeId: "12:4045"

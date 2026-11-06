@@ -1,0 +1,24 @@
+kind: token
+id: color.action.primary.hover
+name: Action Primary Hover
+description: The fill color for a high-emphasis interactive surface while the pointer is over it.
+
+metadata:
+  tags: [color, action, primary, hover]
+  since: 1.0.0
+  status: {status: stable}
+  group: color.action
+
+sections:
+  - kind: guidelines
+    for: all
+    items:
+      - level: should
+        statement: Apply only on pointer-hover; use a separate token for the pressed/active state.
+
+refs:
+  - to: color.action.primary
+    rel: relates-to
+
+tokenType: color
+source: ./tokens.dtcg.json

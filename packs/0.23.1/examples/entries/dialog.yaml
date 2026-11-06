@@ -1,0 +1,47 @@
+kind: component
+id: dialog
+name: Dialog
+description: A modal surface that interrupts the current task until the user responds or dismisses it.
+
+metadata:
+  tags: [overlay, modal]
+  since: 1.0.0
+  status: {status: stable}
+
+sections:
+  - kind: guidelines
+    for: all
+    framing: when-to-use
+    items:
+      - level: should
+        statement: Use when the user has to decide something or supply input before the current task can continue.
+      - level: should-not
+        statement: Don't build a destructive-action confirmation from a bare dialog - use the confirmation dialog pattern, which already names the consequence.
+        alternatives:
+          - to: confirmation-dialog
+
+  - kind: guidelines
+    for: all
+    items:
+      - level: must
+        statement: Move focus to the dialog when it opens, and return it to the triggering element when it closes.
+        checkedBy: manual
+      - level: should
+        statement: Dismiss on Escape unless the dialog is blocking on an action the user has to choose explicitly.
+
+  # A tag-scoped section: every item names `accessibility`, so it sorts after
+  # the untagged how-to-use section above it. This is the narrowest tier in
+  # STYLE_GUIDE.md §4's breadth sort, whatever the section's `for` or `framing`.
+  - kind: guidelines
+    for: all
+    title: Accessibility
+    tags: [accessibility]
+    items:
+      - level: must
+        statement: Give the dialog an accessible name that matches its visible heading.
+        checkedBy: assisted
+        tags: [accessibility, naming]
+      - level: must
+        statement: Constrain focus to the dialog while it is open, and document how to leave it.
+        checkedBy: manual
+        tags: [accessibility, focus]

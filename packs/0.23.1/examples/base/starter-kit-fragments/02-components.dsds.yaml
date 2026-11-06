@@ -1,0 +1,46 @@
+entries:
+  - kind: component
+    id: button
+    name: Button
+    description: An interactive element that triggers an action when activated.
+    metadata:
+      status: {status: stable}
+    sections:
+      # `for: all` precedes `for: human` per STYLE_GUIDE.md §4's audience
+      # sort - both sections are how-to-use, so audience breaks the tie.
+      - kind: guidelines
+        for: all
+        items:
+          # No `statement` here - this item IS the "touch-target" rule
+          # declared once on shared-a11y below, not a second copy of it.
+          # guidelines.schema.yaml only requires `statement` when there's
+          # no same-as ref to fall back on.
+          - level: must
+            refs:
+              - to: shared-a11y#touch-target
+                rel: same-as
+      - kind: guidelines
+        for: human
+        items:
+          - level: should
+            statement: Limit each surface to one primary button.
+    uses:
+      - to: color.action.primary
+
+# Reusable content that isn't a design-system artifact - not an entry, so
+# it lives in this array instead of `entries` above (see entry.schema.yaml's
+# own $comment for why `kind: shared` moved here instead). It documents no
+# artifact of its own - nothing else in this file `uses` it - it only exists to be pointed at, via an entryId#itemId ref (see
+# common/ref.schema.yaml's `to`) and the `same-as` rel. A shared entry is
+# never its own navigable destination.
+shared:
+  - id: shared-a11y
+    name: Shared Accessibility Rules
+    description: Cross-cutting accessibility rules, stated once and referenced from every entry they apply to.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: touch-target
+            level: must
+            statement: Minimum touch target 44x44px.

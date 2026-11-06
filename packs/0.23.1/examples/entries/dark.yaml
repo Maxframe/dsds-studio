@@ -1,0 +1,27 @@
+kind: theme
+id: dark
+name: Dark
+description: Inverted-luminance theme for low-light surfaces and user preference.
+
+metadata:
+  tags: [theme]
+  since: 1.2.0
+  status: {status: stable}
+
+sections:
+  - kind: guidelines
+    for: human
+    items:
+      - level: must
+        statement: Apply via the root color-scheme attribute, never per-component overrides.
+        checkedBy: manual
+      - level: should
+        statement: Respect prefers-color-scheme unless the user has set an explicit preference.
+
+extends:
+  - to: light
+
+colorScheme: dark
+source:
+  href: tokens/dark.tokens.json
+  note: DTCG source for this theme's token overrides - the specific tokens that differ from `light` are whichever this file redeclares.

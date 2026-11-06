@@ -1,0 +1,17 @@
+kind: token
+id: color.action.primary
+name: Action Primary
+description: The fill color for high-emphasis interactive surfaces.
+metadata:
+  status: {status: stable}
+  group: color.action
+
+sections:
+  - kind: guidelines
+    for: all
+    items:
+      - level: must
+        statement: Pair with `color.surface.default` or `color.surface.raised` only — contrast is unverified on any other background.
+
+tokenType: color
+source: ./tokens.dtcg.json
