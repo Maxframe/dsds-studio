@@ -1,5 +1,7 @@
+import { ArrowLeft } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
+import { fieldUsage } from '@shared/field-usage';
 import { getAtPointer } from '@shared/pointer';
 import type {
   EditOp,
@@ -10,6 +12,9 @@ import type {
   RefTarget,
 } from '@shared/types';
 import { api } from './api';
+import { Button } from '@web/components/ui/button';
+import { SettingsMenu } from './SettingsMenu';
+import { useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
 import { EntryTree, removeHint, sameSelection, type Selection } from './EntryTree';
 import { ValidationPanel } from './ValidationPanel';
@@ -62,6 +67,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const [focus, setFocus] = useState<Focus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [settings, updateSettings] = useSettings();
   const [widths, setWidths] = useState<Widths>(loadWidths);
   const resize = (key: keyof Widths) => (px: number) =>
     setWidths((cur) => {
@@ -161,10 +167,12 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             apply: (ops) => applyTo(open.path, ops),
             findings: validation?.findings ?? [],
             targets,
+            usage: (pointer) =>
+              fieldUsage(open.state.value, pointer, open.path, overview?.entries ?? []),
             focus: formFocus,
           }
         : null,
-    [bundle, open, applyTo, validation, targets, formFocus],
+    [bundle, open, applyTo, validation, targets, overview, formFocus],
   );
 
   // Bring the form to a field the other view pointed at.
@@ -243,18 +251,57 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     }
   };
 
+  /** Copy an entry next to the original, with a free id and a "(copy)" name, and open the copy. */
+  const duplicateEntry = async (e: EntrySummary) => {
+    setNotice(null);
+    try {
+      await flushYaml();
+      const state = await api.file(slug, e.file);
+      const original = getAtPointer(state.value, e.pointer);
+      if (typeof original !== 'object' || original === null) throw new Error('Entry not found');
+      const taken = new Set(overview?.entries.map((x) => x.id));
+      let id = `${e.id}-copy`;
+      for (let n = 2; taken.has(id); n++) id = `${e.id}-copy-${n}`;
+      const copy: Record<string, unknown> = { ...(original as Record<string, unknown>), id };
+      if (typeof copy.name === 'string') copy.name = `${copy.name} (copy)`;
+
+      if (e.origin === 'standalone') {
+        const dir = e.file.includes('/') ? e.file.slice(0, e.file.lastIndexOf('/') + 1) : '';
+        const path = `${dir}${id}.dsds.yaml`;
+        await api.saveText(slug, path, state.text);
+        await api.applyOps(
+          slug,
+          path,
+          Object.entries(copy)
+            .filter(([k]) => k === 'id' || k === 'name')
+            .map(([k, value]) => ({ op: 'set' as const, pointer: `/${k}`, value })),
+        );
+        await refresh();
+        select({ type: 'entry', file: path, pointer: '', origin: 'standalone' });
+      } else {
+        const list = e.origin === 'shared' ? '/shared' : '/entries';
+        const count = (getAtPointer(state.value, list) as unknown[]).length;
+        await applyTo(e.file, [{ op: 'append', pointer: list, value: copy }]);
+        select({ type: 'entry', file: e.file, pointer: `${list}/${count}`, origin: e.origin });
+      }
+    } catch (err) {
+      setNotice((err as Error).message);
+    }
+  };
+
   if (error) {
     return (
       <div className="picker">
         <p className="field-note field-note--error">{error}</p>
-        <button type="button" className="button" onClick={onBack}>
+        <Button variant="outline" onClick={onBack}>
           Back
-        </button>
+        </Button>
       </div>
     );
   }
   if (!overview) return <p className="muted pane">Loading…</p>;
 
+  let toolbarMain: React.ReactNode = null;
   let editor: React.ReactNode = <p className="muted">Select an entry.</p>;
   if (!overview.pack) {
     editor = (
@@ -280,19 +327,23 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       (e) =>
         selection.type === 'entry' && e.file === selection.file && e.pointer === selection.pointer,
     );
+    toolbarMain = (
+      <>
+        <h1 className="toolbar-heading" title={title}>
+          {title}
+        </h1>
+        {summary ? (
+          <ConfirmButton
+            label="Remove entry"
+            confirmLabel="Remove"
+            hint={removeHint(summary)}
+            onConfirm={() => void removeEntry(summary)}
+          />
+        ) : null}
+      </>
+    );
     editor = (
       <FormProvider value={ctx}>
-        <div className="editor-head">
-          <h1>{title}</h1>
-          {summary ? (
-            <ConfirmButton
-              label="Remove entry"
-              confirmLabel="Remove"
-              hint={removeHint(summary)}
-              onConfirm={() => void removeEntry(summary)}
-            />
-          ) : null}
-        </div>
         {notice ? <p className="field-note field-note--error">{notice}</p> : null}
         {node ? (
           <div
@@ -326,31 +377,41 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
         } as React.CSSProperties
       }
     >
-      <aside className="pane pane--sidebar">
-        <div className="row">
-          <button type="button" className="button" onClick={onBack}>
-            ← Projects
-          </button>
-          <strong>{slug}</strong>
+      <aside className="column column--sidebar">
+        <header className="toolbar">
+          <Button variant="ghost" size="icon" aria-label="Back to projects" onClick={onBack}>
+            <ArrowLeft />
+          </Button>
+          <strong className="toolbar-title" title={slug}>
+            {slug}
+          </strong>
+          <SettingsMenu settings={settings} onChange={updateSettings} />
+        </header>
+        <div className="pane">
+          <p className="muted">
+            Schema {overview.schemaVersion ?? '?'}
+            {overview.pack && !overview.pack.exact ? ` (using pack ${overview.pack.version})` : ''}
+          </p>
+          <EntryTree
+            overview={overview}
+            selection={selection}
+            onSelect={select}
+            bundle={bundle}
+            entryItems={nodes?.entryItems ?? null}
+            apply={applyTo}
+            onRemove={(e) => void removeEntry(e)}
+            onDuplicate={(e) => void duplicateEntry(e)}
+          />
         </div>
-        <p className="muted">
-          Schema {overview.schemaVersion ?? '?'}
-          {overview.pack && !overview.pack.exact ? ` (using pack ${overview.pack.version})` : ''}
-        </p>
-        <EntryTree
-          overview={overview}
-          selection={selection}
-          onSelect={select}
-          bundle={bundle}
-          entryItems={nodes?.entryItems ?? null}
-          apply={applyTo}
-          onRemove={(e) => void removeEntry(e)}
-        />
       </aside>
       <Resizer side="left" label="Resize sidebar" onResize={resize('sidebar')} />
-      <main className="pane">{editor}</main>
+      <main className="column">
+        <header className="toolbar">{toolbarMain}</header>
+        <div className="pane">{editor}</div>
+      </main>
       <Resizer side="right" label="Resize YAML panel" onResize={resize('panel')} />
-      <aside className="pane--right">
+      <aside className="column column--right">
+        <header className="toolbar" />
         {open ? (
           <YamlPanel
             key={open.path}

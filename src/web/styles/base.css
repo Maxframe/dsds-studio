@@ -12,6 +12,35 @@ body {
   font-size: var(--text-body);
 }
 
+h1,
+h2,
+h3,
+strong {
+  font-weight: var(--weight-medium);
+}
+h1 {
+  font-size: var(--text-title);
+}
+h2 {
+  font-size: var(--text-heading);
+}
+
+/* Interactive elements change colour, not size or position, so hover and focus never shift layout. */
+.tree-item,
+.finding,
+.cm-sticky-line {
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tree-item,
+  .finding,
+  .cm-sticky-line {
+    transition: none;
+  }
+}
+
 code,
 pre {
   font-family: var(--font-code);

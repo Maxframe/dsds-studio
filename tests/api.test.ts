@@ -139,3 +139,37 @@ describe('schema', () => {
     expect((await api.request('/api/packs/9.9.9/schema')).status).toBe(404);
   });
 });
+
+describe('style guide order on save', () => {
+  const ops = (path: string, body: unknown) =>
+    api.request(`/api/projects/acme-design/file/ops?path=${path}`, json(body));
+
+  it('puts a field added out of order where the schema declares it, keeping unknown data', async () => {
+    await createProject();
+    const path = encodeURIComponent('acme-design.dsds.yaml');
+    await ops(path, {
+      ops: [
+        {
+          op: 'append',
+          pointer: '/entries',
+          value: { kind: 'component', id: 'btn', name: 'Button', $extensions: { 'acme.x': 1 } },
+        },
+      ],
+    });
+    const res = await ops(path, {
+      ops: [{ op: 'set', pointer: '/entries/1/description', value: 'A button.' }],
+    });
+    const { text } = await res.json();
+    const lines = text.split('\n') as string[];
+    const at = (needle: string) => lines.findIndex((l) => l.includes(needle));
+    expect(at('description: A button.')).toBeGreaterThan(at('name: Button'));
+    expect(at('description: A button.')).toBeLessThan(at('$extensions'));
+    expect(text).toContain('acme.x: 1');
+    // What is on disk is what the client was told.
+    const disk = readFileSync(
+      join(ws.dirOf('acme-design') as string, 'acme-design.dsds.yaml'),
+      'utf8',
+    );
+    expect(disk).toBe(text);
+  });
+});

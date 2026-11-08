@@ -7,21 +7,32 @@
  *  - Tier 1 (primitives) are raw values. Tier 2 (semantic) reference primitives and are the only
  *    tokens components may use. To restyle the app, edit this file only.
  *  - Dark mode redefines semantic tokens only.
+ *
+ * The palette, radius and shadow follow shadcn/ui's default "neutral" theme (OKLCH values from
+ * https://ui.shadcn.com/docs/theming). Mapping to our semantic tokens:
+ *   --color-bg              background (sidebar tone in light mode, so panels stay distinct)
+ *   --color-surface         card / popover
+ *   --color-surface-sunken  muted, secondary and the hover/accent surface
+ *   --color-border          border / input
+ *   --color-text(-muted)    foreground / muted-foreground
+ *   --color-primary          primary (near-black in light, near-white in dark), not a hue
+ *   --color-error           destructive
  */
 
 :root {
   /* ---- Tier 1: primitives ---- */
-  --p-neutral-0: #ffffff;
-  --p-neutral-50: #f6f7f9;
-  --p-neutral-100: #eceef2;
-  --p-neutral-200: #d9dce3;
-  --p-neutral-500: #6b7280;
-  --p-neutral-700: #374151;
-  --p-neutral-900: #111827;
-  --p-neutral-950: #0b0f19;
-  --p-blue-500: #3b6cf6;
-  --p-blue-600: #2c55d6;
-  --p-red-600: #d12f3a;
+  --p-neutral-0: oklch(1 0 0);
+  --p-neutral-50: oklch(0.985 0 0);
+  --p-neutral-100: oklch(0.97 0 0);
+  --p-neutral-200: oklch(0.922 0 0);
+  --p-neutral-400: oklch(0.708 0 0);
+  --p-neutral-500: oklch(0.556 0 0);
+  --p-neutral-800: oklch(0.269 0 0);
+  --p-neutral-900: oklch(0.205 0 0);
+  --p-neutral-950: oklch(0.145 0 0);
+  --p-white-10: oklch(1 0 0 / 10%);
+  --p-red-400: oklch(0.704 0.191 22.216);
+  --p-red-600: oklch(0.577 0.245 27.325);
   --p-amber-600: #b7791f;
   --p-green-600: #22804a;
 
@@ -32,9 +43,10 @@
   --p-space-6: 1.5rem;
   --p-space-8: 2rem;
 
-  --p-radius-sm: 0.25rem;
+  /* shadcn: --radius 0.625rem; md = radius - 2px, sm = radius - 4px */
+  --p-radius-sm: 0.375rem;
   --p-radius-md: 0.5rem;
-  --p-radius-lg: 0.75rem;
+  --p-radius-lg: 0.625rem;
 
   --p-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --p-font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -48,12 +60,14 @@
   --color-surface: var(--p-neutral-0);
   --color-surface-sunken: var(--p-neutral-100);
   --color-border: var(--p-neutral-200);
-  --color-text: var(--p-neutral-900);
+  --color-text: var(--p-neutral-950);
   --color-text-muted: var(--p-neutral-500);
-  --color-accent: var(--p-blue-500);
-  --color-accent-hover: var(--p-blue-600);
-  --color-on-accent: var(--p-neutral-0);
-  --color-highlight: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  --color-primary: var(--p-neutral-900);
+  --color-primary-hover: color-mix(in oklab, var(--color-primary) 90%, transparent);
+  --color-primary-foreground: var(--p-neutral-50);
+  --color-accent: var(--p-neutral-100);
+  --color-accent-foreground: var(--color-text);
+  --color-highlight: color-mix(in srgb, var(--color-primary) 10%, transparent);
   --color-error: var(--p-red-600);
   --color-warning: var(--p-amber-600);
   --color-success: var(--p-green-600);
@@ -64,8 +78,8 @@
   --space-lg: var(--p-space-6);
   --space-xl: var(--p-space-8);
 
-  --radius-control: var(--p-radius-sm);
-  --radius-card: var(--p-radius-md);
+  --radius-control: var(--p-radius-md);
+  --radius-card: var(--p-radius-lg);
 
   --font-body: var(--p-font-sans);
   --font-code: var(--p-font-mono);
@@ -78,28 +92,95 @@
   --layout-panel-width: 34rem;
   --layout-resizer-width: 0.5rem;
   --layout-suggest-max-height: 14rem;
-  --shadow-popover: 0 0.25rem 0.75rem color-mix(in srgb, var(--color-text) 20%, transparent);
+  /* shadcn shadow-md */
+  --shadow-popover:
+    0 0.25rem 0.375rem -0.0625rem color-mix(in srgb, var(--color-text) 10%, transparent),
+    0 0.125rem 0.25rem -0.125rem color-mix(in srgb, var(--color-text) 10%, transparent);
   --layout-content-max-width: 40rem;
   --focus-ring-width: 2px;
-  --letter-spacing-label: 0.04em;
+  --toolbar-height: 2.5rem;
+  --control-height: 2rem;
+  --control-height-sm: 1.5rem;
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --motion-fast: 120ms;
+  --motion-ease: ease-out;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --color-bg: var(--p-neutral-950);
     --color-surface: var(--p-neutral-900);
-    --color-surface-sunken: var(--p-neutral-950);
-    --color-border: var(--p-neutral-700);
+    --color-surface-sunken: var(--p-neutral-800);
+    --color-border: var(--p-white-10);
     --color-text: var(--p-neutral-50);
-    --color-text-muted: var(--p-neutral-200);
+    --color-text-muted: var(--p-neutral-400);
+    --color-primary: var(--p-neutral-200);
+    --color-accent: var(--p-neutral-800);
+    --color-primary-foreground: var(--p-neutral-900);
+    --color-error: var(--p-red-400);
   }
 }
 
 :root[data-theme='dark'] {
   --color-bg: var(--p-neutral-950);
   --color-surface: var(--p-neutral-900);
-  --color-surface-sunken: var(--p-neutral-950);
-  --color-border: var(--p-neutral-700);
+  --color-surface-sunken: var(--p-neutral-800);
+  --color-border: var(--p-white-10);
   --color-text: var(--p-neutral-50);
-  --color-text-muted: var(--p-neutral-200);
+  --color-text-muted: var(--p-neutral-400);
+  --color-primary: var(--p-neutral-200);
+  --color-accent: var(--p-neutral-800);
+  --color-primary-foreground: var(--p-neutral-900);
+  --color-error: var(--p-red-400);
+}
+
+/*
+ * Display settings (SettingsMenu). `data-base` swaps the neutral ramp for another shadcn base
+ * colour (Tailwind v4 OKLCH values); `data-radius` rescales the corner radii.
+ */
+:root[data-base='zinc'] {
+  --p-neutral-50: oklch(0.985 0 0);
+  --p-neutral-100: oklch(0.967 0.001 286.375);
+  --p-neutral-200: oklch(0.92 0.004 286.32);
+  --p-neutral-400: oklch(0.705 0.015 286.067);
+  --p-neutral-500: oklch(0.552 0.016 285.938);
+  --p-neutral-800: oklch(0.274 0.006 286.033);
+  --p-neutral-900: oklch(0.21 0.006 285.885);
+  --p-neutral-950: oklch(0.141 0.005 285.823);
+}
+:root[data-base='stone'] {
+  --p-neutral-50: oklch(0.985 0.001 106.423);
+  --p-neutral-100: oklch(0.97 0.001 106.424);
+  --p-neutral-200: oklch(0.923 0.003 48.717);
+  --p-neutral-400: oklch(0.709 0.01 56.259);
+  --p-neutral-500: oklch(0.553 0.013 58.071);
+  --p-neutral-800: oklch(0.268 0.007 34.298);
+  --p-neutral-900: oklch(0.216 0.006 56.043);
+  --p-neutral-950: oklch(0.147 0.004 49.25);
+}
+:root[data-base='slate'] {
+  --p-neutral-50: oklch(0.984 0.003 247.858);
+  --p-neutral-100: oklch(0.968 0.007 247.896);
+  --p-neutral-200: oklch(0.929 0.013 255.508);
+  --p-neutral-400: oklch(0.704 0.04 256.788);
+  --p-neutral-500: oklch(0.554 0.046 257.417);
+  --p-neutral-800: oklch(0.279 0.041 260.031);
+  --p-neutral-900: oklch(0.208 0.042 265.755);
+  --p-neutral-950: oklch(0.129 0.042 264.695);
+}
+:root[data-radius='none'] {
+  --p-radius-sm: 0;
+  --p-radius-md: 0;
+  --p-radius-lg: 0;
+}
+:root[data-radius='small'] {
+  --p-radius-sm: 0.25rem;
+  --p-radius-md: 0.375rem;
+  --p-radius-lg: 0.5rem;
+}
+:root[data-radius='large'] {
+  --p-radius-sm: 0.5rem;
+  --p-radius-md: 0.75rem;
+  --p-radius-lg: 1rem;
 }

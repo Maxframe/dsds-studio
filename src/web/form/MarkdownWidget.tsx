@@ -1,5 +1,8 @@
-import { useId, useState, type ChangeEvent, type KeyboardEvent, type SyntheticEvent } from 'react';
+import { useState, type ChangeEvent, type KeyboardEvent, type SyntheticEvent } from 'react';
 import { linkAt, suggestTargets } from '@shared/dsds-links';
+import { Command, CommandItem, CommandList } from '@web/components/ui/command';
+import { Popover, PopoverAnchor, PopoverContent } from '@web/components/ui/popover';
+import { Textarea } from '@web/components/ui/textarea';
 import { useForm } from './context';
 import { useDraft, type Common } from './widgets';
 
@@ -14,7 +17,6 @@ export function MarkdownWidget({ pointer, value, onCommit, required }: Common) {
   const [caret, setCaret] = useState(0);
   const [active, setActive] = useState(0);
   const [dismissed, setDismissed] = useState<number | null>(null);
-  const listId = useId();
 
   const link = linkAt(draft, caret);
   const options = link && dismissed !== link.from ? suggestTargets(targets, link.query) : [];
@@ -63,42 +65,59 @@ export function MarkdownWidget({ pointer, value, onCommit, required }: Common) {
   };
 
   return (
-    <div className="suggest">
-      <textarea
-        id={pointer}
-        className="input"
-        value={draft}
-        rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))}
-        onChange={onChange}
-        onSelect={track}
-        onKeyDown={onKeyDown}
-        onBlur={commit}
-        role="combobox"
-        aria-expanded={open}
-        aria-controls={listId}
-        aria-autocomplete="list"
-      />
-      {open ? (
-        <ul className="suggest-list" id={listId} role="listbox" aria-label="Link targets">
-          {options.map((o, i) => (
-            <li
-              key={o.target}
-              role="option"
-              aria-selected={i === index}
-              className={`suggest-option ${i === index ? 'suggest-option--active' : ''}`}
-              // mousedown, not click: the textarea must not lose focus (and commit) first.
-              onMouseDown={(e) => {
-                e.preventDefault();
-                const el = document.getElementById(pointer);
-                if (el instanceof HTMLTextAreaElement) insert(o.target, el);
-              }}
-            >
-              <span>{o.target}</span>
-              <span className="suggest-label">{o.label}</span>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </div>
+    <Popover open={open}>
+      <PopoverAnchor asChild>
+        <Textarea
+          id={pointer}
+          value={draft}
+          rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))}
+          onChange={onChange}
+          onSelect={track}
+          onKeyDown={onKeyDown}
+          onBlur={commit}
+          role="combobox"
+          aria-expanded={open}
+          aria-haspopup="listbox"
+          aria-autocomplete="list"
+        />
+      </PopoverAnchor>
+      <PopoverContent
+        className="w-(--radix-popover-trigger-width) p-0"
+        // The textarea keeps the focus (and drives the list); the popover only displays it.
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
+        {/* Filtering and ranking are ours (suggestTargets); the textarea picks the active row. */}
+        <Command
+          shouldFilter={false}
+          value={options[index]?.target ?? ''}
+          onValueChange={(target) => {
+            const i = options.findIndex((o) => o.target === target);
+            if (i >= 0) setActive(i);
+          }}
+        >
+          <CommandList label="Link targets" className="p-1">
+            {options.map((o) => (
+              <CommandItem
+                key={o.target}
+                value={o.target}
+                className="justify-between"
+                // mousedown, not click: the textarea must not lose focus (and commit) first.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  const el = document.getElementById(pointer);
+                  if (el instanceof HTMLTextAreaElement) insert(o.target, el);
+                }}
+              >
+                <span className="truncate">{o.target}</span>
+                <span className="truncate text-muted-foreground">{o.label}</span>
+              </CommandItem>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

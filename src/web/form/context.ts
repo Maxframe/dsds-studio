@@ -8,6 +8,8 @@ export interface FormContext {
   apply(ops: EditOp[]): Promise<void>;
   findings: Finding[];
   targets: RefTarget[];
+  /** Values other fields like the one at `pointer` hold, with how many fields hold each. */
+  usage(pointer: string): Map<string, number>;
   /** Pointer to scroll to and highlight (set by clicking a validation finding). */
   focus: string | null;
 }

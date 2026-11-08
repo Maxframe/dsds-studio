@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { PackInfo, ProjectInfo } from '@shared/types';
 import { api } from './api';
+import { Button } from '@web/components/ui/button';
+import { Input } from '@web/components/ui/input';
 
 export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null);
@@ -63,16 +65,15 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
           void create();
         }}
       >
-        <input
-          className="input"
+        <Input
           placeholder="Design system name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           aria-label="Design system name"
         />
-        <button type="submit" className="button button--primary" disabled={!name.trim()}>
+        <Button type="submit" variant="default" disabled={!name.trim()}>
           Create
-        </button>
+        </Button>
       </form>
       {error ? <p className="field-note field-note--error">{error}</p> : null}
     </div>

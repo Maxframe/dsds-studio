@@ -6,7 +6,16 @@ import {
   StateEffect,
   StateField,
 } from '@codemirror/state';
-import { Decoration, EditorView, keymap, lineNumbers, type DecorationSet } from '@codemirror/view';
+import {
+  Decoration,
+  EditorView,
+  drawSelection,
+  keymap,
+  lineNumbers,
+  ViewPlugin,
+  type DecorationSet,
+  type ViewUpdate,
+} from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { syntaxHighlighting } from '@codemirror/language';
 import { yaml } from '@codemirror/lang-yaml';
@@ -14,6 +23,7 @@ import { autocompletion, type CompletionContext } from '@codemirror/autocomplete
 import { classHighlighter } from '@lezer/highlight';
 import { linkAt, suggestTargets } from '@shared/dsds-links';
 import type { RefTarget } from '@shared/types';
+import { stickyAncestors } from './stickyAncestors';
 import { locatePointer, pointerAtOffset } from '@shared/yaml-locate';
 
 /** Marks changes we make ourselves (syncing from the form), so they are not treated as typing. */
@@ -38,6 +48,25 @@ const highlightField = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+/** While the editor has focus, the row the caret is on gets the same highlight as a form-focused field. */
+const caretRow = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.build(view);
+    }
+    update(u: ViewUpdate) {
+      if (u.selectionSet || u.docChanged || u.focusChanged) this.decorations = this.build(u.view);
+    }
+    build(view: EditorView): DecorationSet {
+      if (!view.hasFocus) return Decoration.none;
+      const line = view.state.doc.lineAt(view.state.selection.main.head);
+      return Decoration.set([lineMark.range(line.from)]);
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
 // Colors come from design tokens, so the editor follows light/dark and any restyle of tokens.css.
 const theme = EditorView.theme({
   '&': { height: '100%', color: 'var(--color-text)', backgroundColor: 'var(--color-surface)' },
@@ -51,7 +80,13 @@ const theme = EditorView.theme({
     color: 'var(--color-text-muted)',
     border: 'none',
   },
-  '.cm-cursor': { borderLeftColor: 'var(--color-text)' },
+  // CodeMirror's base theme paints the caret black unless it knows the theme is dark, so set it
+  // from tokens. drawSelection gives a wider, blinking caret we can color (.cm-cursor).
+  '.cm-content': { caretColor: 'var(--color-text)' },
+  '.cm-cursor, .cm-dropCursor': {
+    borderLeftColor: 'var(--color-text)',
+    borderLeftWidth: 'var(--focus-ring-width)',
+  },
   '&.cm-focused': { outline: 'none' },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
     backgroundColor: 'var(--color-highlight)',
@@ -110,6 +145,9 @@ export function YamlPanel(props: {
         doc: handlers.current.text,
         extensions: [
           lineNumbers(),
+          drawSelection(),
+          caretRow,
+          stickyAncestors(),
           history(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           yaml(),

@@ -1,4 +1,13 @@
+import { Button } from '@web/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@web/components/ui/select';
 import { MarkdownWidget } from './MarkdownWidget';
+import { OpenSetWidget } from './OpenSetWidget';
 import { useState } from 'react';
 import {
   defaultValueFor,
@@ -105,15 +114,16 @@ export function SchemaField({
     case 'markdown':
       body = <MarkdownWidget {...common} />;
       break;
-    case 'text':
-      body = (
-        <TextWidget
-          {...common}
-          suggestions={eff.suggestions?.filter((s): s is string => typeof s === 'string')}
-          placeholder={typeof eff.example === 'string' ? eff.example : undefined}
-        />
+    case 'text': {
+      const standard = eff.suggestions?.filter((s): s is string => typeof s === 'string') ?? [];
+      const placeholder = typeof eff.example === 'string' ? eff.example : undefined;
+      body = standard.length ? (
+        <OpenSetWidget {...common} standard={standard} usage={ctx.usage(pointer)} />
+      ) : (
+        <TextWidget {...common} placeholder={placeholder} />
       );
       break;
+    }
     case 'object':
       body = <ObjectFields eff={eff} value={value} pointer={pointer} hide={hide} />;
       break;
@@ -251,12 +261,10 @@ function ObjectFields({
         </div>
       ))}
       {addable.length > 0 ? (
-        <select
-          className="input input--add"
+        <Select
           value=""
-          aria-label="Add field"
-          onChange={(e) => {
-            const prop = addable.find((p) => p.key === e.target.value);
+          onValueChange={(key) => {
+            const prop = addable.find((p) => p.key === key);
             if (!prop) return;
             void ctx.apply([
               {
@@ -267,13 +275,17 @@ function ObjectFields({
             ]);
           }}
         >
-          <option value="">+ Add field…</option>
-          {addable.map((p) => (
-            <option key={p.key} value={p.key}>
-              {p.key}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label="Add field" className="w-auto">
+            <SelectValue placeholder="+ Add field…" />
+          </SelectTrigger>
+          <SelectContent>
+            {addable.map((p) => (
+              <SelectItem key={p.key} value={p.key}>
+                {p.key}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : null}
     </div>
   );
@@ -364,34 +376,33 @@ function ListField({
         </ListItem>
       ))}
       {kinds.length > 0 ? (
-        <select
-          className="input input--add"
-          value=""
-          aria-label={`Add ${label ?? 'item'}`}
-          onChange={(e) => e.target.value && add({ kind: e.target.value }, itemNode)}
-        >
-          <option value="">+ Add {label ?? 'item'}…</option>
-          {kinds.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
+        <Select value="" onValueChange={(k) => add({ kind: k }, itemNode)}>
+          <SelectTrigger aria-label={`Add ${label ?? 'item'}`} className="w-auto">
+            <SelectValue placeholder={`+ Add ${label ?? 'item'}…`} />
+          </SelectTrigger>
+          <SelectContent>
+            {kinds.map((k) => (
+              <SelectItem key={k} value={k}>
+                {k}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       ) : variants.length ? (
         <div className="list-add">
           {variants.map((v, i) => {
             const ve = effective(ctx.bundle, v, undefined);
             return (
-              <button key={i} type="button" className="button" onClick={() => add(undefined, v)}>
+              <Button key={i} variant="outline" onClick={() => add(undefined, v)}>
                 + Add {ve.type === 'string' ? 'text link' : 'pointer'}
-              </button>
+              </Button>
             );
           })}
         </div>
       ) : (
-        <button type="button" className="button" onClick={() => add(undefined, itemNode)}>
+        <Button variant="outline" onClick={() => add(undefined, itemNode)}>
           + Add {label ?? 'item'}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -425,32 +436,32 @@ function ListItem(props: {
           {open ? '▾' : '▸'} {props.label}
         </button>
         <span className="list-item-actions">
-          <button
-            type="button"
-            className="icon-button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             disabled={props.index === 0}
             onClick={() => move(props.index - 1)}
             aria-label="Move up"
           >
             ↑
-          </button>
-          <button
-            type="button"
-            className="icon-button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
             disabled={props.index === props.count - 1}
             onClick={() => move(props.index + 1)}
             aria-label="Move down"
           >
             ↓
-          </button>
-          <button
-            type="button"
-            className="icon-button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={() => void ctx.apply([{ op: 'remove', pointer: props.pointer }])}
             aria-label="Remove"
           >
             ✕
-          </button>
+          </Button>
         </span>
       </div>
       {open ? <div className="list-item-body">{props.children}</div> : null}

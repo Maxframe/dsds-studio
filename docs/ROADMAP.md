@@ -27,6 +27,7 @@ Work top to bottom. Each item has an acceptance check; tick it only when `npm ru
 - [x] Validation panel, click to jump to field
 - [x] Live YAML panel with two-way sync and cross-view field highlighting; remove entries
 - [ ] Browser walkthrough, remaining: dark mode, narrow widths, scroll-to-finding from the panel
+- [x] Form edits save in style-guide field order (pack's `dsds-format`, run on `file/ops`)
 - [ ] Lint (advisory) findings panel: needs the pack's `lint-docs.js` in the adapter
 
 ## M3: Versioning

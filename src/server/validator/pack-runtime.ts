@@ -42,6 +42,19 @@ export interface PackRuntime {
   resolveProject(documents: unknown[]): ResolveResult;
   /** Upstream helper listing a document's entities (entries + shared, or the entry itself). */
   entriesIn(doc: unknown): unknown[];
+  /**
+   * The pack's own `dsds-format`: puts fields in the order the schema files declare (style guide
+   * §1-§6) by moving lines, so comments, quoting and unknown fields survive. Never throws.
+   */
+  formatText(text: string): FormatResult;
+}
+
+export interface FormatResult {
+  text: string;
+  changed: boolean;
+  /** Out-of-order places the formatter would not touch, for the user to fix by hand. */
+  unfixable: Array<{ pointer: string; reason: string; order: string[] }>;
+  error?: string;
 }
 
 const cache = new Map<string, PackRuntime>();
@@ -59,11 +72,13 @@ export function loadPackRuntime(version: string, packsDir = PACKS_DIR): PackRunt
   const validate = req(join(dir, 'validate/validate.js'));
   const resolve = req(join(dir, 'resolve/resolve.js'));
   const lib = req(join(dir, 'lib.js'));
+  const format = req(join(dir, 'format/format.js'));
   const runtime: PackRuntime = {
     version,
     validateDoc: validate.validateDoc,
     resolveProject: resolve.resolveProject,
     entriesIn: lib.entriesIn,
+    formatText: format.formatText,
   };
   cache.set(key, runtime);
   return runtime;

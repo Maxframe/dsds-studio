@@ -1,6 +1,16 @@
 import { useId, useState } from 'react';
 import { parse, stringify } from 'yaml';
+import { Input } from '@web/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@web/components/ui/select';
+import { Textarea } from '@web/components/ui/textarea';
 import { useForm } from './context';
+import { RefCombobox } from './RefCombobox';
 
 /**
  * A local draft of an input that resets when the saved value changes underneath it (after a
@@ -43,17 +53,16 @@ export function TextWidget({
   };
   const common = {
     id: pointer,
-    className: 'input',
     value: draft,
     placeholder,
     onChange: (e: { target: { value: string } }) => setDraft(e.target.value),
     onBlur: commit,
   };
   return multiline ? (
-    <textarea {...common} rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))} />
+    <Textarea {...common} rows={Math.min(10, Math.max(3, draft.split('\n').length + 1))} />
   ) : (
     <>
-      <input
+      <Input
         {...common}
         type="text"
         list={suggestions?.length ? listId : undefined}
@@ -72,15 +81,17 @@ export function TextWidget({
 
 export function NumberWidget({ pointer, value, onCommit }: Common) {
   return (
-    <input
+    <Input
       id={pointer}
-      className="input"
       type="number"
       defaultValue={typeof value === 'number' ? value : ''}
       onBlur={(e) => onCommit(e.target.value === '' ? undefined : Number(e.target.value))}
     />
   );
 }
+
+/** Radix Select forbids an empty item value, so "(not set)" gets a sentinel. */
+const UNSET = '\u0000unset';
 
 export function SelectWidget({
   pointer,
@@ -90,19 +101,22 @@ export function SelectWidget({
   required,
 }: Common & { options: unknown[] }) {
   return (
-    <select
-      id={pointer}
-      className="input"
-      value={value === undefined ? '' : String(value)}
-      onChange={(e) => onCommit(e.target.value === '' ? undefined : e.target.value)}
+    <Select
+      value={value === undefined ? UNSET : String(value)}
+      onValueChange={(v) => onCommit(v === UNSET ? undefined : v)}
     >
-      {!required || value === undefined ? <option value="">(not set)</option> : null}
-      {options.map((o) => (
-        <option key={String(o)} value={String(o)}>
-          {String(o)}
-        </option>
-      ))}
-    </select>
+      <SelectTrigger id={pointer} className="w-full">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {!required || value === undefined ? <SelectItem value={UNSET}>(not set)</SelectItem> : null}
+        {options.map((o) => (
+          <SelectItem key={String(o)} value={String(o)}>
+            {String(o)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -117,14 +131,14 @@ export function BooleanWidget({ pointer, value, onCommit }: Common) {
   );
 }
 
-/** A `to` pointer: free text with the project's entries and item addresses as suggestions. */
+/** A `to` pointer: pick the project's entries and item addresses, or type another target. */
 export function RefTargetWidget(props: Common) {
   const { targets } = useForm();
   const value = typeof props.value === 'string' ? props.value : '';
   const known = value === '' || targets.some((t) => t.target === value);
   return (
     <>
-      <TextWidget {...props} suggestions={targets.map((t) => t.target)} />
+      <RefCombobox {...props} targets={targets} />
       {!known ? (
         <div className="field-note field-note--warning">Not found in this project.</div>
       ) : null}
@@ -151,9 +165,9 @@ export function RawYamlWidget({ pointer, value, onCommit }: Common) {
   };
   return (
     <>
-      <textarea
+      <Textarea
         id={pointer}
-        className="input input--code"
+        className="bg-muted font-mono text-(length:--text-small)"
         value={draft}
         rows={Math.min(14, Math.max(3, draft.split('\n').length + 1))}
         onChange={(e) => setDraft(e.target.value)}

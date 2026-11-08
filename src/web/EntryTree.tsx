@@ -1,5 +1,21 @@
 import { useState } from 'react';
-import { ConfirmButton } from './ConfirmButton';
+import { ChevronRight } from 'lucide-react';
+import { cn } from '@web/lib/utils';
+import { Button } from '@web/components/ui/button';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@web/components/ui/collapsible';
+import { Input } from '@web/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@web/components/ui/select';
+import { EntryMenu } from './EntryMenu';
 import type { SchemaBundle, SchemaNode } from '@shared/schema';
 import { defaultValueFor, kindOptions } from '@shared/schema';
 import type { EditOp, EntrySummary, ProjectOverview, ValidationResult } from '@shared/types';
@@ -44,6 +60,26 @@ function groupEntries(entries: EntrySummary[]): Array<[string, EntrySummary[]]> 
   return [...groups].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
 }
 
+/** The button of a tree row: ghost, and it truncates its label so nothing wraps or grows the sidebar. */
+function TreeButton(props: { active: boolean; onClick(): void; children: React.ReactNode }) {
+  return (
+    <Button
+      variant="ghost"
+      className={cn(
+        // The row draws the hover and selected background, so the button itself stays flat.
+        'tree-button w-full min-w-0 shrink justify-between gap-1 px-2 font-normal hover:bg-transparent',
+      )}
+      aria-current={props.active ? 'true' : undefined}
+      onClick={props.onClick}
+    >
+      {props.children}
+    </Button>
+  );
+}
+
+/** Radix Select forbids an empty item value, so the generic kind gets a sentinel. */
+const GENERIC = '\u0000generic';
+
 export function EntryTree(props: {
   overview: ProjectOverview;
   selection: Selection | null;
@@ -53,6 +89,7 @@ export function EntryTree(props: {
   entryItems: SchemaNode | null;
   apply(file: string, ops: EditOp[]): Promise<void>;
   onRemove(entry: EntrySummary): void;
+  onDuplicate(entry: EntrySummary): void;
 }) {
   const { overview, selection, onSelect, bundle, entryItems } = props;
   const baseFile = overview.documents[0]?.path;
@@ -88,63 +125,68 @@ export function EntryTree(props: {
 
   return (
     <div>
-      <h2 className="pane-title">Documents</h2>
+      <h2 className="pane-title">Files</h2>
       {documents.map((d) => {
         const sel: Selection = { type: 'document', file: d.path };
         const c = counts(overview.validation[d.path], '');
         return (
           <div key={d.path} className="tree-group">
-            <button
-              type="button"
-              className={`tree-item ${sameSelection(selection, sel) ? 'tree-item--active' : ''}`}
-              onClick={() => onSelect(sel)}
-            >
-              <span>{d.path}</span>
-              {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
-            </button>
+            <div className={cn('tree-row', sameSelection(selection, sel) && 'tree-row--active')}>
+              <TreeButton active={sameSelection(selection, sel)} onClick={() => onSelect(sel)}>
+                <span className="truncate">{d.path}</span>
+                <span className="badge">base</span>
+                {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
+              </TreeButton>
+            </div>
           </div>
         );
       })}
 
       {groupEntries(overview.entries).map(([group, entries]) => (
-        <div key={group} className="tree-group">
-          <h2 className="pane-title">{group}</h2>
-          {entries.map((e) => {
-            const sel: Selection = {
-              type: 'entry',
-              file: e.file,
-              pointer: e.pointer,
-              origin: e.origin,
-            };
-            const c = counts(overview.validation[e.file], e.pointer);
-            return (
-              <div key={`${e.file}${e.pointer}`} className="tree-row">
-                <button
-                  type="button"
-                  className={`tree-item ${sameSelection(selection, sel) ? 'tree-item--active' : ''}`}
-                  onClick={() => onSelect(sel)}
+        <Collapsible key={group} defaultOpen className="tree-group">
+          <h2 className="pane-title">
+            <CollapsibleTrigger className="group inline-flex cursor-pointer items-center gap-1 rounded-sm border-0 bg-transparent p-0 text-inherit [font:inherit] outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
+              <ChevronRight
+                aria-hidden
+                className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none"
+              />
+              <span className="inline-block first-letter:uppercase">{group}</span>
+            </CollapsibleTrigger>
+          </h2>
+          <CollapsibleContent>
+            {entries.map((e) => {
+              const sel: Selection = {
+                type: 'entry',
+                file: e.file,
+                pointer: e.pointer,
+                origin: e.origin,
+              };
+              const c = counts(overview.validation[e.file], e.pointer);
+              return (
+                <div
+                  key={`${e.file}${e.pointer}`}
+                  className={cn('tree-row', sameSelection(selection, sel) && 'tree-row--active')}
                 >
-                  <span>
-                    {e.name ?? e.id} <span className="tree-id">{e.id}</span>
+                  <TreeButton active={sameSelection(selection, sel)} onClick={() => onSelect(sel)}>
+                    <span className="truncate">{e.name ?? e.id}</span>
+                    {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
+                    {!c.errors && c.warnings ? (
+                      <span className="badge badge--warning">{c.warnings}</span>
+                    ) : null}
+                  </TreeButton>
+                  <span className="tree-row-actions">
+                    <EntryMenu
+                      name={e.name ?? e.id}
+                      removeHint={removeHint(e)}
+                      onDuplicate={() => props.onDuplicate(e)}
+                      onRemove={() => props.onRemove(e)}
+                    />
                   </span>
-                  {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
-                  {!c.errors && c.warnings ? (
-                    <span className="badge badge--warning">{c.warnings}</span>
-                  ) : null}
-                </button>
-                <span className="tree-row-actions">
-                  <ConfirmButton
-                    compact
-                    className="icon-button"
-                    label={`Remove ${e.name ?? e.id}`}
-                    hint={removeHint(e)}
-                    onConfirm={() => props.onRemove(e)}
-                  />
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                </div>
+              );
+            })}
+          </CollapsibleContent>
+        </Collapsible>
       ))}
 
       {baseFile && kinds.length > 0 ? (
@@ -156,29 +198,31 @@ export function EntryTree(props: {
           }}
         >
           <h2 className="pane-title">Add entry</h2>
-          <select
-            className="input"
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            aria-label="Entry kind"
+          <Select
+            value={kind === '' ? GENERIC : kind}
+            onValueChange={(k) => setKind(k === GENERIC ? '' : k)}
           >
-            <option value="">entry (generic)</option>
-            {kinds.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
-          <input
-            className="input"
+            <SelectTrigger aria-label="Entry kind" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={GENERIC}>entry (generic)</SelectItem>
+              {kinds.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {k}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
             placeholder="Name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             aria-label="Entry name"
           />
-          <button type="submit" className="button" disabled={!name.trim()}>
+          <Button type="submit" variant="outline" disabled={!name.trim()}>
             Add
-          </button>
+          </Button>
           {error ? <div className="field-note field-note--error">{error}</div> : null}
         </form>
       ) : null}

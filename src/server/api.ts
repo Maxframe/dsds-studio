@@ -5,6 +5,7 @@ import type { EditOp, ValidationResult } from '@shared/types';
 import { DsdsDocument } from './documents/document';
 import { listPacks, packForSchemaVersion, PACKS_DIR } from './packs';
 import { Project } from './projects/project';
+import { loadPackRuntime } from './validator/pack-runtime';
 import { Workspace } from './workspace';
 
 export type { EditOp };
@@ -117,12 +118,25 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     } catch (e) {
       return fail((e as Error).message);
     }
-    writeFileSync(abs, doc.toText());
     const dir = workspace.dirOf(slug) as string;
+    let text = doc.toText();
+    // Put fields in schema order with the pack's own formatter (only for YAML; JSON is
+    // re-serialised from the AST). Skipped if it cannot parse or changes nothing.
+    const version = doc.schemaVersion ? packForSchemaVersion(doc.schemaVersion) : null;
+    const pack = version?.pack.version ?? Project.load({ dir }).pack()?.pack.version;
+    if (doc.format === 'yaml' && pack) {
+      const formatted = loadPackRuntime(pack).formatText(text);
+      if (!formatted.error) text = formatted.text;
+    }
+    writeFileSync(abs, text);
     const project = Project.load({ dir });
     const match = project.pack();
     const validation = match ? project.validate(match.pack.version).get(path) : undefined;
-    return c.json({ value: doc.toValue(), text: doc.toText(), validation: validation ?? null });
+    return c.json({
+      value: DsdsDocument.parse(text).toValue(),
+      text,
+      validation: validation ?? null,
+    });
   });
 
   // Replace a file's whole text (raw editor). Refuses text that doesn't parse.

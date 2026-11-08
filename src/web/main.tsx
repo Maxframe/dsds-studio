@@ -1,10 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './styles/tokens.css';
+import './styles/tailwind.css';
 import './styles/base.css';
 import './styles/forms.css';
 import './styles/layout.css';
 import { App } from './App';
+import { applySettings, loadSettings } from './settings';
+
+// Before the first render, so a saved dark scheme never flashes light.
+applySettings(loadSettings());
 
 const root = document.getElementById('root');
 if (!root) throw new Error('#root not found');

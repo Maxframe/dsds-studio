@@ -1,3 +1,4 @@
+import { Button } from '@web/components/ui/button';
 import { ConfirmButton } from '../ConfirmButton';
 import { useForm } from './context';
 
@@ -26,7 +27,7 @@ export function RemoveField({
     return (
       <ConfirmButton
         compact
-        className="icon-button field-remove"
+        className="field-remove"
         label={name}
         hint={`Removes ${label} and everything in it`}
         onConfirm={remove}
@@ -34,14 +35,15 @@ export function RemoveField({
     );
   }
   return (
-    <button
-      type="button"
-      className="icon-button field-remove"
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      className="field-remove"
       aria-label={name}
       title={name}
       onClick={remove}
     >
       ✕
-    </button>
+    </Button>
   );
 }
