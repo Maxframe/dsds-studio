@@ -6,7 +6,7 @@ documents. It is driven by vendored schema releases ("packs"), so it keeps worki
 changes.
 
 ```bash
-npm install
+npm run setup                  # npm install; falls back to the public registry if your configured one fails
 npm run pack:add -- v0.23.1   # vendor the schema release (once)
 npm run example:create         # optional: a rich example project in workspace/
 npm run dev                    # http://localhost:5173

@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "check:tokens": "node scripts/check-tokens.mjs",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:tokens && npm run test",
+    "setup": "node scripts/install.mjs",
     "pack:add": "node scripts/add-pack.mjs",
     "example:create": "node scripts/create-example.mjs"
   },
