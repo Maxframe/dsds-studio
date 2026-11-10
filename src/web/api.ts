@@ -1,9 +1,12 @@
 import type {
+  DraftState,
+  DiffResult,
   EditOp,
   FileState,
   PackInfo,
   ProjectInfo,
   ProjectOverview,
+  VersionInfo,
   RefTarget,
 } from '@shared/types';
 
@@ -31,6 +34,24 @@ export const api = {
   file: (slug: string, path: string) => call<FileState>(`/api/projects/${slug}/file?${q(path)}`),
   applyOps: (slug: string, path: string, ops: EditOp[]) =>
     call<FileState>(`/api/projects/${slug}/file/ops?${q(path)}`, post({ ops })),
+  draft: (slug: string) => call<DraftState>(`/api/projects/${slug}/draft`),
+  discardDraft: (slug: string) =>
+    call<DraftState & { discarded: boolean }>(`/api/projects/${slug}/draft/discard`, {
+      method: 'POST',
+    }),
+  saveVersion: (slug: string, input: { label?: string; tag?: string; stamp?: boolean }) =>
+    call<DraftState>(`/api/projects/${slug}/versions`, post(input)),
+  diff: (slug: string, from: string, to: string) =>
+    call<DiffResult>(
+      `/api/projects/${slug}/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+    ),
+  versions: (slug: string) => call<VersionInfo[]>(`/api/projects/${slug}/versions`),
+  tagVersion: (slug: string, id: string, tag: string) =>
+    call<VersionInfo[]>(`/api/projects/${slug}/versions/${id}/tag`, post({ tag })),
+  nameVersion: (slug: string, id: string, label: string) =>
+    call<VersionInfo[]>(`/api/projects/${slug}/versions/${id}/name`, post({ label })),
+  restoreVersion: (slug: string, id: string) =>
+    call<DraftState>(`/api/projects/${slug}/versions/${id}/restore`, post({})),
   deleteFile: (slug: string, path: string) =>
     call<{ trashed: string }>(`/api/projects/${slug}/file?${q(path)}`, { method: 'DELETE' }),
   saveText: (slug: string, path: string, text: string) =>

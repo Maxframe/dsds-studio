@@ -17,12 +17,15 @@ import { RefCombobox } from './RefCombobox';
  * save or a reload), without an effect: the draft remembers which saved value it was based on.
  */
 export function useDraft(saved: string) {
-  const [state, setState] = useState({ base: saved, text: saved, error: null as string | null });
-  const fresh = state.base === saved;
+  const [state, setState] = useState({ seen: saved, text: saved, error: null as string | null });
+  // Whenever the saved value changes, the draft starts over from it. Comparing with the last value
+  // seen (not with the value the draft was typed over) also catches a return to an earlier value,
+  // such as discarding changes or undoing in the YAML view.
+  if (state.seen !== saved) setState({ seen: saved, text: saved, error: null });
   return {
-    text: fresh ? state.text : saved,
-    error: fresh ? state.error : null,
-    set: (text: string, error: string | null = null) => setState({ base: saved, text, error }),
+    text: state.seen === saved ? state.text : saved,
+    error: state.seen === saved ? state.error : null,
+    set: (text: string, error: string | null = null) => setState({ seen: saved, text, error }),
   };
 }
 
