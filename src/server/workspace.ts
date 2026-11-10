@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { commitInitialVersion } from './projects/versions';
 
 export const DEFAULT_WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../workspace');
 export const DOCUMENT_FILE = /\.dsds\.(ya?ml|json)$/;
@@ -67,6 +68,7 @@ export class Workspace {
         '',
       ].join('\n'),
     );
+    commitInitialVersion(dir);
     return { slug, documents: 1 };
   }
 

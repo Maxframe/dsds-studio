@@ -3,12 +3,43 @@ import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { EditOp, ValidationResult } from '@shared/types';
 import { DsdsDocument } from './documents/document';
+import { applyOpsToFile, FileNotFound } from './documents/edit';
 import { listPacks, packForSchemaVersion, PACKS_DIR } from './packs';
+import { diffRevisions } from './projects/diff';
+import { stampChanged } from './projects/stamp';
 import { Project } from './projects/project';
-import { loadPackRuntime } from './validator/pack-runtime';
+import {
+  discardDraft,
+  draftOf,
+  hasVersion,
+  headVersion,
+  isVersion,
+  listVersions,
+  nameVersion,
+  restoreVersion,
+  saveVersion,
+  tagExists,
+  tagVersion,
+} from './projects/versions';
 import { Workspace } from './workspace';
 
 export type { EditOp };
+
+/** The system's own version, offered as a tag until a version carries it. */
+function suggestedTag(dir: string): string | null {
+  const isRecord = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
+  for (const d of Project.load({ dir }).documents) {
+    const value = d.doc.toValue();
+    const candidates = isRecord(value) ? (value.kind ? [value] : (value.entries as unknown[])) : [];
+    for (const e of Array.isArray(candidates) ? candidates : []) {
+      if (!isRecord(e) || e.kind !== 'system' || !isRecord(e.metadata)) continue;
+      const v = e.metadata.version;
+      if (typeof v === 'string' && v.trim() && !tagExists(dir, v.trim())) return v.trim();
+    }
+  }
+  return null;
+}
 
 export function createApi(workspace: Workspace = new Workspace()): Hono {
   const app = new Hono();
@@ -101,34 +132,13 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     if (!abs) return fail('Invalid path', 400);
     const { ops } = (await c.req.json().catch(() => ({}))) as { ops?: EditOp[] };
     if (!Array.isArray(ops) || ops.length === 0) return fail('ops must be a non-empty list');
-    let doc: DsdsDocument;
-    try {
-      doc = DsdsDocument.parse(readFileSync(abs, 'utf8'));
-    } catch {
-      return fail('File not found', 404);
-    }
-    try {
-      for (const op of ops) {
-        if (op.op === 'set') doc.setAt(op.pointer, op.value);
-        else if (op.op === 'remove') doc.removeAt(op.pointer);
-        else if (op.op === 'append') doc.appendAt(op.pointer, op.value);
-        else if (op.op === 'move') doc.moveAt(op.pointer, op.from, op.to);
-        else return fail('Unknown op');
-      }
-    } catch (e) {
-      return fail((e as Error).message);
-    }
     const dir = workspace.dirOf(slug) as string;
-    let text = doc.toText();
-    // Put fields in schema order with the pack's own formatter (only for YAML; JSON is
-    // re-serialised from the AST). Skipped if it cannot parse or changes nothing.
-    const version = doc.schemaVersion ? packForSchemaVersion(doc.schemaVersion) : null;
-    const pack = version?.pack.version ?? Project.load({ dir }).pack()?.pack.version;
-    if (doc.format === 'yaml' && pack) {
-      const formatted = loadPackRuntime(pack).formatText(text);
-      if (!formatted.error) text = formatted.text;
+    let text: string;
+    try {
+      text = applyOpsToFile(dir, abs, ops);
+    } catch (e) {
+      return fail((e as Error).message, e instanceof FileNotFound ? 404 : 400);
     }
-    writeFileSync(abs, text);
     const project = Project.load({ dir });
     const match = project.pack();
     const validation = match ? project.validate(match.pack.version).get(path) : undefined;
@@ -163,6 +173,103 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
       return c.json({ trashed });
     } catch (e) {
       return fail((e as Error).message, /not found/i.test((e as Error).message) ? 404 : 400);
+    }
+  });
+
+  // The draft: files that differ from the last saved version.
+  app.get('/api/projects/:slug/draft', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    return c.json({ ...draftOf(dir), suggestedTag: suggestedTag(dir) });
+  });
+
+  // The history: versions newest first (quicksaves included; the client folds them away).
+  app.get('/api/projects/:slug/versions', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    return c.json(listVersions(dir));
+  });
+
+  // What changed between two revisions, entry by entry. `from`: a version id or `HEAD` (the latest
+  // version); `to`: a version id or `working` (the files as they are now, which is the default).
+  app.get('/api/projects/:slug/diff', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    const from = c.req.query('from') === 'HEAD' ? headVersion(dir) : (c.req.query('from') ?? '');
+    const to = c.req.query('to') ?? 'working';
+    if (!from || !isVersion(dir, from)) return fail('Version not found', 404);
+    if (to !== 'working' && !isVersion(dir, to)) return fail('Version not found', 404);
+    return c.json(diffRevisions(dir, from, to));
+  });
+
+  // Tag or name an earlier version.
+  for (const action of ['tag', 'name'] as const) {
+    app.post(`/api/projects/:slug/versions/:id/${action}`, async (c) => {
+      const dir = workspace.dirOf(c.req.param('slug'));
+      if (!dir) return fail('Project not found', 404);
+      const id = c.req.param('id');
+      if (!isVersion(dir, id)) return fail('Version not found', 404);
+      const body = (await c.req.json().catch(() => ({}))) as { tag?: unknown; label?: unknown };
+      try {
+        if (action === 'tag') tagVersion(dir, id, typeof body.tag === 'string' ? body.tag : '');
+        else nameVersion(dir, id, typeof body.label === 'string' ? body.label : '');
+      } catch (e) {
+        return fail((e as Error).message);
+      }
+      return c.json(listVersions(dir));
+    });
+  }
+
+  // Restore an earlier version: the files become that version, saved as a new version on top.
+  app.post('/api/projects/:slug/versions/:id/restore', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    const id = c.req.param('id');
+    if (!isVersion(dir, id)) return fail('Version not found', 404);
+    try {
+      restoreVersion(dir, id);
+    } catch (e) {
+      const message = (e as Error).message;
+      return fail(message, /unsaved changes|already match/i.test(message) ? 409 : 400);
+    }
+    return c.json({ ...draftOf(dir), suggestedTag: suggestedTag(dir) });
+  });
+
+  // Save the draft as a version: a quicksave (no label) or a named one (label, optional tag).
+  app.post('/api/projects/:slug/versions', async (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    const body = (await c.req.json().catch(() => ({}))) as {
+      label?: unknown;
+      tag?: unknown;
+      stamp?: unknown;
+    };
+    const label = typeof body.label === 'string' ? body.label : undefined;
+    const tag = typeof body.tag === 'string' ? body.tag : undefined;
+    // Stamping is for a named version only: `metadata.updated` records a deliberate change.
+    const stamp = body.stamp === true && !!label?.trim();
+    try {
+      saveVersion(dir, {
+        label,
+        tag,
+        beforeCommit: stamp ? () => void stampChanged(dir, label?.trim() ?? '') : undefined,
+      });
+    } catch (e) {
+      const message = (e as Error).message;
+      return fail(message, /no changes/i.test(message) ? 409 : 400);
+    }
+    return c.json({ ...draftOf(dir), suggestedTag: suggestedTag(dir) });
+  });
+
+  // Go back to the last saved version. What is discarded is kept in a git stash.
+  app.post('/api/projects/:slug/draft/discard', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    if (!hasVersion(dir)) return fail('There is no saved version to go back to yet', 409);
+    try {
+      return c.json({ discarded: discardDraft(dir), ...draftOf(dir) });
+    } catch (e) {
+      return fail((e as Error).message);
     }
   });
 
