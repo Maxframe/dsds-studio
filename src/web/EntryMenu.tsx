@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Copy, MoreHorizontal, Trash2 } from 'lucide-react';
-import { Button } from '@web/components/ui/button';
+import { IconButton } from './IconButton';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,15 +24,15 @@ export function EntryMenu(props: {
   return (
     <DropdownMenu onOpenChange={() => setArmed(false)}>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
           size="icon-xs"
           // The row behind it already has the accent background, so hover needs a step beyond it.
           className="hover:bg-foreground/10 data-[state=open]:bg-foreground/10"
-          aria-label={`More actions for ${props.name}`}
+          label={`More actions for ${props.name}`}
         >
           <MoreHorizontal />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
         <DropdownMenuItem onSelect={props.onDuplicate}>

@@ -9,6 +9,7 @@ import type { EditOp, Finding } from '@shared/types';
 import { FormProvider, type FormContext } from '../src/web/form/context';
 import { SchemaField } from '../src/web/form/SchemaField';
 import './dom-polyfills';
+import { iconButtonsMissingHints, iconOnlyButtons } from './icon-buttons';
 import { optionsOf } from './select';
 import { packDir } from './helpers';
 
@@ -56,6 +57,28 @@ const component = {
 };
 
 describe('schema-driven form', () => {
+  it('gives every icon button a name and a hover hint', () => {
+    setup(component);
+    // The list item's move and remove buttons, the removable fields, and the combobox buttons.
+    expect(iconOnlyButtons().length).toBeGreaterThan(3);
+    expect(iconButtonsMissingHints()).toEqual([]);
+  });
+
+  it('shows a tooltip with the same text when an icon button is hovered', async () => {
+    const { user } = setup(component);
+    const down = screen.getAllByLabelText('Move down')[0] as HTMLElement;
+    await user.hover(down);
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Move down');
+  });
+
+  it('can still show a hint on a disabled icon button (the first item cannot move up)', async () => {
+    const { user } = setup(component);
+    const up = screen.getAllByLabelText('Move up')[0] as HTMLButtonElement;
+    expect(up.disabled).toBe(true);
+    await user.hover(up.parentElement as HTMLElement);
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Move up');
+  });
+
   it('renders the fields the schema declares for this kind', () => {
     setup(component);
     for (const label of ['kind', 'id', 'name', 'description', 'sections']) {

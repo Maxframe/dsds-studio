@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from '@web/components/ui/collapsible';
 import { EntryMenu } from './EntryMenu';
+import { IconButton } from './IconButton';
 import { decisionTemplate, isoDate, nextDecisionId } from '@shared/decision';
 import { AddEntryPanel, NewEntryInput } from './NewEntry';
 import type { SchemaBundle, SchemaNode } from '@shared/schema';
@@ -57,18 +58,17 @@ function groupEntries(entries: EntrySummary[]): Array<[string, EntrySummary[]]> 
 /** The "+" in a group title row, shown with the row's other actions on hover. */
 function AddButton(props: { label: string; open: boolean; onClick(): void }) {
   return (
-    <Button
+    <IconButton
       variant="ghost"
       size="icon-xs"
       // The row behind it already has the accent background, so hover needs a step beyond it.
       className="hover:bg-foreground/10 data-[state=open]:bg-foreground/10"
       aria-expanded={props.open}
-      aria-label={props.label}
-      title={props.label}
+      label={props.label}
       onClick={props.onClick}
     >
       <Plus />
-    </Button>
+    </IconButton>
   );
 }
 

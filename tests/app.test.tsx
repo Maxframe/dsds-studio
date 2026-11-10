@@ -10,6 +10,7 @@ import { createApi } from '@server/api';
 import { Workspace } from '@server/workspace';
 import { App } from '../src/web/App';
 import './dom-polyfills';
+import { iconButtonsMissingHints, iconOnlyButtons } from './icon-buttons';
 import { choose } from './select';
 
 // Renders the whole app against the real API, so a runtime error anywhere on the way from the
@@ -424,6 +425,32 @@ describe('app', () => {
       timeout: 5000,
     });
     expect(await screen.findByText(/0 errors/)).toBeTruthy();
+  });
+
+  it('gives every icon button in the project view a name and a hover hint', async () => {
+    const user = userEvent.setup();
+    await openNewProject(user);
+    await addEntry(user, 'component', 'Button');
+    await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
+    const toolbar = ['Back to projects', 'Settings', 'Hide editor panel'];
+    for (const name of toolbar) expect(screen.getByRole('button', { name })).toBeTruthy();
+    expect(iconOnlyButtons().length).toBeGreaterThanOrEqual(8);
+    expect(iconButtonsMissingHints()).toEqual([]);
+
+    // Overlays are part of the app too: the history popover and the add panel.
+    await user.click(screen.getByRole('button', { name: 'History' }));
+    await screen.findByText('Initial version');
+    expect(iconButtonsMissingHints()).toEqual([]);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'New entry' }));
+    expect(iconButtonsMissingHints()).toEqual([]);
+  });
+
+  it('shows a tooltip when a toolbar icon button is hovered', async () => {
+    const user = userEvent.setup();
+    await openNewProject(user);
+    await user.hover(screen.getByRole('button', { name: 'Settings' }));
+    expect((await screen.findByRole('tooltip')).textContent).toBe('Settings');
   });
 
   it('collapses and restores the YAML panel from the toolbar, remembering the choice', async () => {

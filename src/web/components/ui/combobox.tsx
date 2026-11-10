@@ -39,6 +39,9 @@ export function ComboboxClear({ className, ...props }: ComboboxPrimitive.Clear.P
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
       render={<InputGroupButton />}
+      // Inside the field, so the browser's own tooltip (title) rather than a floating one.
+      aria-label="Clear"
+      title="Clear"
       className={cn(className)}
       {...props}
     >
@@ -67,7 +70,7 @@ export function ComboboxInput({
         {showClear && <ComboboxClear disabled={disabled} />}
         {showTrigger && (
           <InputGroupButton asChild data-slot="input-group-button" disabled={disabled}>
-            <ComboboxTrigger />
+            <ComboboxTrigger aria-label="Show options" title="Show options" />
           </InputGroupButton>
         )}
       </InputGroupAddon>

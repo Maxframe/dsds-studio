@@ -5,6 +5,7 @@ import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@web/components/ui/popover';
 import { api } from './api';
+import { IconButton } from './IconButton';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const when = (iso: string) => {
@@ -145,14 +146,14 @@ export function HistoryPanel({
                       Restore
                     </Button>
                   ) : null}
-                  <Button
+                  <IconButton
                     variant="ghost"
                     size="icon-xs"
-                    aria-label={`Tag ${v.label}`}
+                    label={`Tag ${v.label}`}
                     onClick={() => startEditing(v.id, 'tag')}
                   >
                     <Tag />
-                  </Button>
+                  </IconButton>
                 </span>
               </div>
               {editing?.id === v.id ? (

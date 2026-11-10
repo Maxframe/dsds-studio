@@ -19,6 +19,7 @@ import { Button } from '@web/components/ui/button';
 import { SettingsMenu } from './SettingsMenu';
 import { useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
+import { IconButton } from './IconButton';
 import { DraftBar, type SaveInput } from './DraftBar';
 import type { RestoreMode } from './RestoreDialog';
 import { EntryTree, removeHint, sameSelection, type Selection } from './EntryTree';
@@ -476,9 +477,9 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     >
       <aside className="column column--sidebar">
         <header className="toolbar">
-          <Button variant="ghost" size="icon" aria-label="Back to projects" onClick={onBack}>
+          <IconButton variant="ghost" size="icon" label="Back to projects" onClick={onBack}>
             <ArrowLeft />
-          </Button>
+          </IconButton>
           <strong className="toolbar-title" title={slug}>
             {slug}
           </strong>
@@ -514,17 +515,16 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       <main className="column">
         <header className="toolbar">
           {toolbarMain}
-          <Button
+          <IconButton
             variant="ghost"
             size="icon"
             className="ml-auto"
-            aria-label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
+            label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
             aria-pressed={panelOpen}
-            title={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
             onClick={togglePanel}
           >
             <PanelRight />
-          </Button>
+          </IconButton>
         </header>
         <div className="pane">{editor}</div>
       </main>

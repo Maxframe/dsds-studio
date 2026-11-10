@@ -18,6 +18,7 @@ import {
 } from '@shared/schema';
 import { buildPointer } from '@shared/pointer';
 import { findingsAt, useForm } from './context';
+import { IconButton } from '../IconButton';
 import { RemoveField } from './RemoveField';
 import {
   BooleanWidget,
@@ -436,32 +437,32 @@ function ListItem(props: {
           {open ? '▾' : '▸'} {props.label}
         </button>
         <span className="list-item-actions">
-          <Button
+          <IconButton
             variant="ghost"
             size="icon-xs"
             disabled={props.index === 0}
             onClick={() => move(props.index - 1)}
-            aria-label="Move up"
+            label="Move up"
           >
             ↑
-          </Button>
-          <Button
+          </IconButton>
+          <IconButton
             variant="ghost"
             size="icon-xs"
             disabled={props.index === props.count - 1}
             onClick={() => move(props.index + 1)}
-            aria-label="Move down"
+            label="Move down"
           >
             ↓
-          </Button>
-          <Button
+          </IconButton>
+          <IconButton
             variant="ghost"
             size="icon-xs"
             onClick={() => void ctx.apply([{ op: 'remove', pointer: props.pointer }])}
-            aria-label="Remove"
+            label="Remove"
           >
             ✕
-          </Button>
+          </IconButton>
         </span>
       </div>
       {open ? <div className="list-item-body">{props.children}</div> : null}

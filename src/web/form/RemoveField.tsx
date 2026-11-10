@@ -1,5 +1,5 @@
-import { Button } from '@web/components/ui/button';
 import { ConfirmButton } from '../ConfirmButton';
+import { IconButton } from '../IconButton';
 import { useForm } from './context';
 
 const hasContent = (v: unknown) =>
@@ -35,15 +35,14 @@ export function RemoveField({
     );
   }
   return (
-    <Button
+    <IconButton
       variant="ghost"
       size="icon-xs"
       className="field-remove"
-      aria-label={name}
-      title={name}
+      label={name}
       onClick={remove}
     >
       ✕
-    </Button>
+    </IconButton>
   );
 }

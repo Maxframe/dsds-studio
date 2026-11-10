@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@web/components/ui/button';
 import { cn } from '@web/lib/utils';
+import { IconButton } from './IconButton';
 
 /** A destructive action that needs a second click. No browser dialog, so it is also testable. */
 export function ConfirmButton(props: {
@@ -16,16 +17,27 @@ export function ConfirmButton(props: {
   const [armed, setArmed] = useState(false);
   if (!armed) {
     return (
-      <Button
-        variant="ghost"
-        size={props.compact ? 'icon-xs' : 'default'}
-        className={cn(!props.compact && 'text-destructive hover:text-destructive', props.className)}
-        aria-label={props.compact ? props.label : undefined}
-        title={props.label}
-        onClick={() => setArmed(true)}
-      >
-        {props.compact ? '✕' : props.label}
-      </Button>
+      <>
+        {props.compact ? (
+          <IconButton
+            variant="ghost"
+            size="icon-xs"
+            className={props.className}
+            label={props.label}
+            onClick={() => setArmed(true)}
+          >
+            ✕
+          </IconButton>
+        ) : (
+          <Button
+            variant="ghost"
+            className={cn('text-destructive hover:text-destructive', props.className)}
+            onClick={() => setArmed(true)}
+          >
+            {props.label}
+          </Button>
+        )}
+      </>
     );
   }
   return (

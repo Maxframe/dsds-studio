@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import { Monitor, Moon, Settings as SettingsIcon, Sun } from 'lucide-react';
-import { Button } from '@web/components/ui/button';
+import { IconButton } from './IconButton';
 import { Popover, PopoverContent, PopoverTrigger } from '@web/components/ui/popover';
 import {
   Select,
@@ -63,9 +63,9 @@ export function SettingsMenu({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Settings">
+        <IconButton variant="ghost" size="icon" label="Settings">
           <SettingsIcon />
-        </Button>
+        </IconButton>
       </PopoverTrigger>
       <PopoverContent align="start" className="grid w-80 gap-4">
         <Row label="Color scheme">
