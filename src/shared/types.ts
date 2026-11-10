@@ -37,6 +37,76 @@ export interface ValidationResult {
   findings: Finding[];
   /** Pack version that produced this result. */
   packVersion: string;
+  /**
+   * Advisory findings from the pack's lint ("is this documentation good?"). Kept apart from
+   * `findings` so they never change `ok`, `errors` or `warnings`.
+   */
+  advice?: Finding[];
+}
+
+/** One file that differs from the project's last saved version. */
+export interface DraftChange {
+  path: string;
+  status: 'added' | 'modified' | 'deleted';
+}
+
+/** The draft: what has changed since the last saved version. */
+export interface DraftState {
+  /** False until the project has a first saved version (an older project, or a folder without git). */
+  hasVersion: boolean;
+  changed: DraftChange[];
+  /** The system's `metadata.version`, offered as the tag for a named version while it is untagged. */
+  suggestedTag: string | null;
+}
+
+/** One saved version in a project's history. */
+export interface VersionInfo {
+  /** Full commit id. */
+  id: string;
+  label: string;
+  /** ISO 8601 author date. */
+  date: string;
+  /** A quicksave has an automatic label; a named version was given one (when saved, or later). */
+  kind: 'quicksave' | 'named';
+  tags: string[];
+}
+
+/** One field that differs between two revisions of an entry. */
+export interface FieldChange {
+  /** JSON Pointer inside the entry. */
+  path: string;
+  change: 'added' | 'removed' | 'changed';
+  /** Short text of the old / new value (shortened when long). */
+  before?: string;
+  after?: string;
+}
+
+/** One entry that differs between two revisions. */
+export interface EntryChange {
+  /** The entry's `uuid` when it has one, otherwise its `id`; `@base` for the base document itself. */
+  key: string;
+  id: string;
+  name: string | null;
+  kind: string | null;
+  /** Document the entry lives in, in the newer revision (the older one for a removed entry). */
+  file: string;
+  /** Where the entry sits in that document: `/entries/2`, `/shared/0`, or `` for a standalone file. */
+  pointer: string;
+  status: 'added' | 'removed' | 'changed';
+  fields: FieldChange[];
+  /** Set when the same entry (found by uuid) has a different id now. */
+  idChanged?: { from: string; to: string };
+  /** The entry's status became `deprecated` in this change. */
+  deprecated?: boolean;
+  /** Guidance when an id went away (Specification §3.1: published ids should not change). */
+  warning?: string;
+}
+
+/** A structural, entry-level comparison of two revisions of a project. */
+export interface DiffResult {
+  from: string;
+  to: string;
+  entries: EntryChange[];
 }
 
 export type DocumentFormat = 'yaml' | 'json';

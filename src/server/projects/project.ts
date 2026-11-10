@@ -5,6 +5,7 @@ import { buildPointer } from '@shared/pointer';
 import { DsdsDocument, formatFromFilename } from '../documents/document';
 import { packForSchemaVersion, type PackMatch } from '../packs';
 import { validateDocument } from '../validator/adapter';
+import { lintFiles } from '../validator/lint';
 import { loadPackRuntime, type ResolveResult } from '../validator/pack-runtime';
 
 export interface ProjectDocument {
@@ -131,16 +132,24 @@ export class Project {
     return packForSchemaVersion(this.schemaVersion);
   }
 
-  /** Validate every document, resolving cross-file refs against the whole project. */
+  /**
+   * Validate every document, resolving cross-file refs against the whole project. Each result also
+   * carries the pack's advisory lint as `advice`.
+   */
   validate(packVersion: string, strict = false): Map<string, ValidationResult> {
     const runtime = loadPackRuntime(packVersion);
     const cliEntities = this.documents.flatMap((d) => runtime.entriesIn(d.doc.toValue()));
+    const advice = lintFiles(
+      packVersion,
+      this.dir,
+      this.documents.map((d) => d.absPath),
+    );
     const out = new Map<string, ValidationResult>();
     for (const d of this.documents) {
-      out.set(
-        d.path,
-        validateDocument(d.doc, packVersion, { filePath: d.absPath, cliEntities, strict }),
-      );
+      out.set(d.path, {
+        ...validateDocument(d.doc, packVersion, { filePath: d.absPath, cliEntities, strict }),
+        advice: advice.get(d.absPath) ?? [],
+      });
     }
     return out;
   }
