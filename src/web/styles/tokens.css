@@ -36,6 +36,7 @@
   --p-amber-600: #b7791f;
   --p-green-600: #22804a;
 
+  --p-space-0: 0.125rem;
   --p-space-1: 0.25rem;
   --p-space-2: 0.5rem;
   --p-space-3: 0.75rem;
@@ -72,6 +73,7 @@
   --color-warning: var(--p-amber-600);
   --color-success: var(--p-green-600);
 
+  --space-2xs: var(--p-space-0);
   --space-xs: var(--p-space-1);
   --space-sm: var(--p-space-2);
   --space-md: var(--p-space-4);
@@ -90,6 +92,8 @@
 
   --layout-sidebar-width: 18rem;
   --layout-panel-width: 34rem;
+  --layout-panel-min-width: 14rem;
+  --layout-main-min-width: 20rem;
   --layout-resizer-width: 0.5rem;
   --layout-suggest-max-height: 14rem;
   /* shadcn shadow-md */

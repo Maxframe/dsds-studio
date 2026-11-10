@@ -1,8 +1,34 @@
+/*
+ * The sidebar and YAML panel keep their set widths on a wide window. On a narrow one the sidebar
+ * gives up to 30% of the width, and the panel shrinks (down to its minimum) so the form in the
+ * middle keeps at least --layout-main-min-width.
+ */
 .project-shell {
+  --sidebar: min(var(--layout-sidebar-width), 30vw);
+  --panel: min(
+    var(--layout-panel-width),
+    max(var(--layout-panel-min-width), calc(100vw - var(--sidebar) - var(--layout-main-min-width)))
+  );
   display: grid;
-  grid-template-columns: var(--layout-sidebar-width) 0 minmax(0, 1fr) 0 var(--layout-panel-width);
+  grid-template-columns: var(--sidebar) 0 minmax(0, 1fr) 0 var(--panel);
   grid-template-rows: minmax(0, 1fr);
   height: 100vh;
+}
+/*
+ * Collapsed YAML panel: its column shrinks to nothing but stays mounted, so the editor keeps its
+ * text and cursor.
+ */
+.project-shell--no-panel {
+  --panel: 0;
+}
+.project-shell--no-panel .column--right {
+  visibility: hidden;
+  border-left-width: 0;
+}
+/* Gone entirely: even hidden, its touch target would poke past the window edge and add a scrollbar.
+   The panel's column and the one before it are both 0 wide, so the grid placement still works. */
+.project-shell--no-panel .resizer[aria-label='Resize YAML panel'] {
+  display: none;
 }
 /* A column is one pane: its own toolbar on top, then the scrolling content. */
 .column {
@@ -64,6 +90,14 @@
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
 }
+.tree-heading .pane-title {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.new-entry {
+  margin-bottom: var(--space-sm);
+}
 .pane-title {
   margin: 0 0 var(--space-sm);
   font-size: var(--text-small);
@@ -75,7 +109,15 @@
   text-transform: uppercase;
 }
 .tree-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
   margin-bottom: var(--space-md);
+}
+.tree-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
 }
 .tree-item {
   display: flex;
@@ -214,7 +256,8 @@
   border-radius: var(--radius-control);
 }
 .tree-row:hover,
-.tree-row:has([data-state='open']),
+.tree-row:has([aria-haspopup='menu'][data-state='open']),
+.tree-row--open,
 .tree-row--active {
   background: var(--color-accent);
   color: var(--color-accent-foreground);
@@ -231,8 +274,98 @@
 }
 .tree-row:hover .tree-row-actions,
 .tree-row:has(:focus-visible) .tree-row-actions,
-.tree-row-actions:has([data-state='open']) {
+.tree-row--open .tree-row-actions,
+.tree-row-actions:has([aria-haspopup='menu'][data-state='open']) {
   display: flex;
+}
+.draft-bar {
+  display: grid;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-small);
+}
+.diff-list,
+.diff-fields {
+  display: grid;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.diff-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.diff-entry {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 0;
+  padding: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+.diff-fields {
+  gap: var(--space-2xs);
+  font-size: var(--text-small);
+}
+.diff-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2xs);
+}
+.diff-where {
+  color: var(--color-text-muted);
+  font-family: var(--font-code);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.diff-before,
+.diff-after {
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-control);
+  font-family: var(--font-code);
+  overflow-wrap: anywhere;
+}
+.diff-before {
+  color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+}
+.diff-before::before {
+  content: '- ';
+}
+.diff-after {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+}
+.diff-after::before {
+  content: '+ ';
+}
+.diff-status--added {
+  color: var(--color-success);
+}
+.diff-status--removed {
+  color: var(--color-error);
+}
+.history-title {
+  margin: 0;
+  font-size: var(--text-small);
+}
+.history-item {
+  display: grid;
+  /* minmax(0, 1fr), not auto: an auto column grows to its widest line and pushes the buttons out. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-control);
+}
+.history-item:hover {
+  background: var(--color-accent);
+}
+.draft-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
 }
 .confirm {
   display: inline-flex;

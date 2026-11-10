@@ -1,4 +1,4 @@
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, PanelRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
 import { fieldUsage } from '@shared/field-usage';
@@ -6,16 +6,21 @@ import { getAtPointer } from '@shared/pointer';
 import type {
   EditOp,
   EntrySummary,
+  DraftState,
   FileState,
   Finding,
   ProjectOverview,
   RefTarget,
+  VersionInfo,
 } from '@shared/types';
 import { api } from './api';
+import { cn } from '@web/lib/utils';
 import { Button } from '@web/components/ui/button';
 import { SettingsMenu } from './SettingsMenu';
 import { useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
+import { DraftBar, type SaveInput } from './DraftBar';
+import type { RestoreMode } from './RestoreDialog';
 import { EntryTree, removeHint, sameSelection, type Selection } from './EntryTree';
 import { ValidationPanel } from './ValidationPanel';
 import { Resizer } from './Resizer';
@@ -43,6 +48,17 @@ function scrollFormTo(pointer: string) {
   }
 }
 
+const PANEL_KEY = 'dsds-studio.panel-open';
+
+/** The YAML panel is open unless the viewer collapsed it. */
+function loadPanelOpen(): boolean {
+  try {
+    return localStorage.getItem(PANEL_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+
 const WIDTHS_KEY = 'dsds-studio.pane-widths';
 type Widths = { sidebar?: number; panel?: number };
 
@@ -63,12 +79,24 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const [bundle, setBundle] = useState<SchemaBundle | null>(null);
   const [selected, setSelected] = useState<Selection | null>(null);
   const [file, setFile] = useState<{ path: string; state: FileState } | null>(null);
+  const [draft, setDraft] = useState<DraftState | null>(null);
+  const [reload, setReload] = useState(0);
   const [targets, setTargets] = useState<RefTarget[]>([]);
   const [focus, setFocus] = useState<Focus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [settings, updateSettings] = useSettings();
   const [widths, setWidths] = useState<Widths>(loadWidths);
+  const [panelOpen, setPanelOpen] = useState(loadPanelOpen);
+  const togglePanel = () =>
+    setPanelOpen((open) => {
+      try {
+        localStorage.setItem(PANEL_KEY, String(!open));
+      } catch {
+        /* per-viewer convenience only */
+      }
+      return !open;
+    });
   const resize = (key: keyof Widths) => (px: number) =>
     setWidths((cur) => {
       const next = { ...cur, [key]: Math.round(px) };
@@ -83,6 +111,11 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     () =>
       api.project(slug).then((o) => {
         setOverview(o);
+        // Every save goes through refresh, so the draft stays current without its own polling.
+        api
+          .draft(slug)
+          .then(setDraft)
+          .catch(() => setDraft(null));
         api
           .targets(slug)
           .then(setTargets)
@@ -119,7 +152,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       .file(slug, selFile)
       .then((state) => setFile({ path: selFile, state }))
       .catch((e: Error) => setError(e.message));
-  }, [slug, selFile]);
+  }, [slug, selFile, reload]);
 
   const open = file && file.path === selFile ? file : null;
 
@@ -251,6 +284,69 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     }
   };
 
+  /** Save the draft as a version. Pending YAML text is saved first so the version includes it. */
+  const saveVersion = async (input: SaveInput) => {
+    await flushYaml();
+    setDraft(await api.saveVersion(slug, input));
+    // A stamp changes the files, so what is on screen is read again from them.
+    if (input.stamp) {
+      setReload((n) => n + 1);
+      await refresh();
+    }
+  };
+  const quicksave = async () => {
+    setNotice(null);
+    try {
+      await saveVersion({ label: '', tag: '', stamp: false });
+    } catch (err) {
+      setNotice((err as Error).message);
+    }
+  };
+
+  // Ctrl/Cmd+S quicksaves instead of the browser's "save page".
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        if (draft && draft.changed.length > 0) void quicksave();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  /**
+   * Restore an earlier version. Unsaved changes are first quicksaved or discarded, as chosen, so
+   * the restore itself never overwrites work. Reloads what is on screen from the files afterwards.
+   */
+  const restoreVersion = async (version: VersionInfo, how: RestoreMode) => {
+    await flushYaml();
+    if (how === 'quicksave') await saveVersion({ label: '', tag: '', stamp: false });
+    if (how === 'discard') await api.discardDraft(slug);
+    setDraft(await api.restoreVersion(slug, version.id));
+    markYamlSaved();
+    setSelected(null);
+    setFocus(null);
+    setReload((n) => n + 1);
+    await refresh();
+  };
+
+  /** Go back to the last version: drop the draft, then reload what is on screen from the files. */
+  const discardDraft = async () => {
+    setNotice(null);
+    try {
+      await flushYaml();
+      await api.discardDraft(slug);
+      markYamlSaved();
+      setSelected(null);
+      setFocus(null);
+      setReload((n) => n + 1);
+      await refresh();
+    } catch (err) {
+      setNotice((err as Error).message);
+    }
+  };
+
   /** Copy an entry next to the original, with a free id and a "(copy)" name, and open the copy. */
   const duplicateEntry = async (e: EntrySummary) => {
     setNotice(null);
@@ -263,19 +359,20 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       let id = `${e.id}-copy`;
       for (let n = 2; taken.has(id); n++) id = `${e.id}-copy-${n}`;
       const copy: Record<string, unknown> = { ...(original as Record<string, unknown>), id };
+      // A `uuid` is one entry's stable key (Specification §3.1): the copy gets none, not a duplicate.
+      delete copy.uuid;
       if (typeof copy.name === 'string') copy.name = `${copy.name} (copy)`;
 
       if (e.origin === 'standalone') {
         const dir = e.file.includes('/') ? e.file.slice(0, e.file.lastIndexOf('/') + 1) : '';
         const path = `${dir}${id}.dsds.yaml`;
         await api.saveText(slug, path, state.text);
-        await api.applyOps(
-          slug,
-          path,
-          Object.entries(copy)
+        await api.applyOps(slug, path, [
+          ...Object.entries(copy)
             .filter(([k]) => k === 'id' || k === 'name')
             .map(([k, value]) => ({ op: 'set' as const, pointer: `/${k}`, value })),
-        );
+          ...('uuid' in original ? [{ op: 'remove' as const, pointer: '/uuid' }] : []),
+        ]);
         await refresh();
         select({ type: 'entry', file: path, pointer: '', origin: 'standalone' });
       } else {
@@ -369,7 +466,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
 
   return (
     <div
-      className="project-shell"
+      className={cn('project-shell', !panelOpen && 'project-shell--no-panel')}
       style={
         {
           ...(widths.sidebar ? { '--layout-sidebar-width': `${widths.sidebar}px` } : {}),
@@ -388,6 +485,14 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
           <SettingsMenu settings={settings} onChange={updateSettings} />
         </header>
         <div className="pane">
+          <DraftBar
+            slug={slug}
+            draft={draft}
+            onDiscard={() => void discardDraft()}
+            onQuicksave={quicksave}
+            onSaveVersion={saveVersion}
+            onRestore={restoreVersion}
+          />
           <p className="muted">
             Schema {overview.schemaVersion ?? '?'}
             {overview.pack && !overview.pack.exact ? ` (using pack ${overview.pack.version})` : ''}
@@ -398,6 +503,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             onSelect={select}
             bundle={bundle}
             entryItems={nodes?.entryItems ?? null}
+            sharedItems={nodes?.sharedItems ?? null}
             apply={applyTo}
             onRemove={(e) => void removeEntry(e)}
             onDuplicate={(e) => void duplicateEntry(e)}
@@ -406,7 +512,20 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       </aside>
       <Resizer side="left" label="Resize sidebar" onResize={resize('sidebar')} />
       <main className="column">
-        <header className="toolbar">{toolbarMain}</header>
+        <header className="toolbar">
+          {toolbarMain}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto"
+            aria-label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
+            aria-pressed={panelOpen}
+            title={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
+            onClick={togglePanel}
+          >
+            <PanelRight />
+          </Button>
+        </header>
         <div className="pane">{editor}</div>
       </main>
       <Resizer side="right" label="Resize YAML panel" onResize={resize('panel')} />
