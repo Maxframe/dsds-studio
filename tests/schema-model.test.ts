@@ -8,6 +8,8 @@ import {
   kindOptions,
   nodeOf,
   propertyOf,
+  containsChoices,
+  variantChoices,
   type JsonSchema,
 } from '@shared/schema';
 import { packDir } from './helpers';
@@ -123,5 +125,79 @@ describe('schema model on the real bundle', () => {
     expect(keys(enumTrait)).toContain('values');
     const boolTrait = effective(bundle, traits.items!, { kind: 'boolean', traitType: 'state' });
     expect(keys(boolTrait)).not.toContain('values');
+  });
+});
+
+describe('variant choices for an "Add" button', () => {
+  const sectionsOf = (kind: string) => {
+    const e = entryEff({ kind: 'component' });
+    const sections = propertyOf(bundle, e, 'sections', [])!.items!;
+    return effective(bundle, sections, { kind, for: 'all' });
+  };
+  const itemsNode = (kind: string) => propertyOf(bundle, sectionsOf(kind), 'items', [])!.items!;
+
+  it('tells apart the two shapes of a guideline item by what each one requires', () => {
+    const item = effective(bundle, itemsNode('guidelines'), undefined);
+    expect(item.variantNodes).toHaveLength(2);
+    const choices = variantChoices(bundle, item.variantNodes ?? [], itemsNode('guidelines'));
+    expect(choices.map((c) => c.label)).toEqual(['statement', 'refs']);
+    // Each says what that field is, from the schema's own description.
+    expect(choices[0]?.description).toMatch(/usage rule/i);
+    expect(new Set(choices.map((c) => c.label)).size).toBe(choices.length);
+  });
+
+  it('never offers two buttons with the same label', () => {
+    // Walk the lists the form shows with variants: every choice set must be distinguishable.
+    for (const kind of ['guidelines', 'definitions', 'steps', 'section']) {
+      const items = propertyOf(bundle, sectionsOf(kind), 'items', []);
+      const eff = items?.items ? effective(bundle, items.items, undefined) : null;
+      const choices = variantChoices(bundle, eff?.variantNodes ?? []);
+      expect(new Set(choices.map((c) => c.label)).size).toBe(choices.length);
+    }
+  });
+
+  it('keeps naming text-or-object alternatives (a link as text, or as a pointer)', () => {
+    const e = entryEff({ kind: 'component' });
+    const uses = propertyOf(bundle, e, 'uses', [])!;
+    const eff = effective(bundle, uses.items!, undefined);
+    expect(variantChoices(bundle, eff.variantNodes ?? []).map((c) => c.label)).toEqual([
+      'text link',
+      'pointer',
+    ]);
+  });
+});
+
+describe('pointers a list must contain', () => {
+  const refsOf = (item: unknown) => {
+    const e = entryEff({ kind: 'component' });
+    const sections = propertyOf(bundle, e, 'sections', [])!.items!;
+    const g = effective(bundle, sections, { kind: 'guidelines', for: 'all' });
+    const items = propertyOf(bundle, g, 'items', [])!.items!;
+    return propertyOf(bundle, effective(bundle, items, item), 'refs', [])!;
+  };
+
+  it('reads what a pointing guideline item must contain from the schema', () => {
+    const refs = refsOf({ refs: [] });
+    const choices = containsChoices(bundle, refs);
+    expect(choices.map((c) => c.label)).toEqual(['same-as pointer', 'relates-to link']);
+    expect(choices.map((c) => c.seed)).toEqual([
+      { rel: 'same-as', to: '' },
+      { rel: 'relates-to', href: '' },
+    ]);
+  });
+
+  it('is satisfied by an item of either shape, and not by another', () => {
+    const refs = refsOf({ refs: [] });
+    const [same, relates] = containsChoices(bundle, refs);
+    expect(same?.satisfiedBy({ rel: 'same-as', to: 'shared-a11y#x' })).toBe(true);
+    expect(same?.satisfiedBy({ rel: 'relates-to', href: 'https://x.test' })).toBe(false);
+    expect(relates?.satisfiedBy({ rel: 'relates-to', href: 'https://x.test' })).toBe(true);
+    expect(same?.satisfiedBy('https://plain.link')).toBe(false);
+  });
+
+  it('has nothing to require for a list the schema leaves open', () => {
+    const e = entryEff({ kind: 'component' });
+    const uses = propertyOf(bundle, e, 'uses', [])!;
+    expect(containsChoices(bundle, uses)).toEqual([]);
   });
 });

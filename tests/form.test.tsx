@@ -56,6 +56,181 @@ const component = {
   ],
 };
 
+describe('adding a guideline item', () => {
+  const empty = {
+    ...component,
+    sections: [{ kind: 'guidelines', for: 'all', items: [] }],
+  };
+  const addButtons = () =>
+    [...document.querySelectorAll<HTMLElement>('.list-add button')].map((b) => b.textContent);
+
+  it('offers distinct buttons for the two shapes, named after what each holds', () => {
+    setup(empty);
+    expect(addButtons()).toEqual(['+ Add statement', '+ Add refs']);
+    // The tooltip says what it means, from the schema.
+    const statement = screen.getByRole('button', { name: '+ Add statement' });
+    expect(statement.getAttribute('title')).toMatch(/usage rule/i);
+  });
+
+  it('a statement item starts with its level, a pointer item without one', async () => {
+    const { apply, user } = setup(empty);
+    await user.click(screen.getByRole('button', { name: '+ Add statement' }));
+    const [stated] = apply.mock.calls[0]?.[0] ?? [];
+    expect(stated).toMatchObject({ op: 'append', value: { statement: '' } });
+    expect(Object.keys((stated as { value: object }).value)).toContain('level');
+
+    apply.mockClear();
+    await user.click(screen.getByRole('button', { name: '+ Add refs' }));
+    const [pointer] = apply.mock.calls[0]?.[0] ?? [];
+    expect((pointer as { value: object }).value).toEqual({ refs: [] });
+  });
+});
+
+describe('adding a pointer to a list of refs', () => {
+  const withRefs = {
+    ...component,
+    sections: [{ kind: 'guidelines', for: 'all', items: [{ refs: [] }] }],
+  };
+  const added = async (name: string) => {
+    const { apply, user } = setup(withRefs);
+    await user.click(screen.getByRole('button', { name }));
+    const [op] = apply.mock.calls[0]?.[0] ?? [];
+    return op as { op: string; pointer: string; value: unknown };
+  };
+
+  it('a text link is a plain string, a pointer is an object that says what it is and where', async () => {
+    const link = await added('+ Add text link');
+    expect(link).toMatchObject({
+      op: 'append',
+      pointer: expect.stringMatching(/\/refs$/),
+      value: '',
+    });
+    cleanup();
+    const pointer = await added('+ Add pointer');
+    expect(typeof pointer.value).toBe('object');
+    // `rel` is required, and exactly one of `to` / `href`: the pointer starts with both decided.
+    expect(Object.keys(pointer.value as object).sort()).toEqual(['rel', 'to']);
+  });
+
+  it('the two buttons never add the same thing', async () => {
+    const link = await added('+ Add text link');
+    cleanup();
+    const pointer = await added('+ Add pointer');
+    expect(pointer.value).not.toEqual(link.value);
+  });
+});
+
+describe('a pointing guideline item must contain a same-as or relates-to pointer', () => {
+  const guidelinesWith = (refs: unknown[]) => ({
+    ...component,
+    sections: [{ kind: 'guidelines', for: 'all', items: [{ refs }] }],
+  });
+  const buttons = () =>
+    [...document.querySelectorAll<HTMLElement>('.list-add button')].map((b) => b.textContent);
+
+  it('offers the shapes the schema asks for, ahead of the general ones', () => {
+    setup(guidelinesWith([]));
+    expect(buttons()).toEqual([
+      '+ Add same-as pointer',
+      '+ Add relates-to link',
+      '+ Add text link',
+      '+ Add pointer',
+      '+ Add statement',
+      '+ Add refs',
+    ]);
+  });
+
+  it('adds a pointer that already says which kind it is', async () => {
+    const { apply, user } = setup(guidelinesWith([]));
+    await user.click(screen.getByRole('button', { name: '+ Add same-as pointer' }));
+    expect(apply.mock.calls[0]?.[0]).toEqual([
+      {
+        op: 'append',
+        pointer: '/entries/0/sections/0/items/0/refs',
+        value: { rel: 'same-as', to: '' },
+      },
+    ]);
+    apply.mockClear();
+    await user.click(screen.getByRole('button', { name: '+ Add relates-to link' }));
+    expect((apply.mock.calls[0]?.[0] ?? [])[0]).toMatchObject({
+      value: { rel: 'relates-to', href: '' },
+    });
+  });
+
+  it('stops offering them once the list holds one', () => {
+    setup(guidelinesWith([{ rel: 'same-as', to: 'shared-a11y#touch-target' }]));
+    expect(buttons()).not.toContain('+ Add same-as pointer');
+    expect(buttons()).not.toContain('+ Add relates-to link');
+    // The general buttons stay: more pointers can always be added.
+    expect(buttons()).toContain('+ Add pointer');
+  });
+});
+
+describe('list item heads', () => {
+  const guidelines = (items: unknown[]) => ({
+    ...component,
+    sections: [{ kind: 'guidelines', for: 'all', items }],
+  });
+  const heads = () => [...document.querySelectorAll<HTMLElement>('.list-item-head .link-button')];
+  const headOf = (text: string) => heads().find((h) => h.textContent?.includes(text));
+
+  it('puts the requirement level in front of a guideline item, so a collapsed item has context', () => {
+    setup(
+      guidelines([
+        { level: 'should', statement: 'Confirming a destructive action (delete, revoke access)' },
+        { level: 'must-not', statement: 'Use it for navigation' },
+        { level: 'may', statement: 'Add an icon' },
+        { level: 'must', statement: 'Label it' },
+      ]),
+    );
+    // More than three items start collapsed: the head is all there is to read.
+    const should = headOf('Confirming a destructive action');
+    expect(should?.querySelector('.list-item-prefix')?.textContent).toBe('SHOULD');
+    expect(should?.textContent).toMatch(
+      /SHOULD:\s+Confirming a destructive action \(delete, revoke access\)/,
+    );
+    expect(headOf('Use it for navigation')?.querySelector('.list-item-prefix')?.textContent).toBe(
+      'MUST NOT',
+    );
+    expect(headOf('Add an icon')?.querySelector('.list-item-prefix')?.textContent).toBe('MAY');
+  });
+
+  it('says where an item points when it has no text of its own', () => {
+    setup(
+      guidelines([
+        { level: 'must', refs: [{ to: 'shared-a11y#touch-target', rel: 'same-as' }] },
+        { refs: [{ href: 'https://example.com/rule', rel: 'relates-to' }] },
+      ]),
+    );
+    expect(headOf('shared-a11y#touch-target')?.textContent).toMatch(
+      /MUST:\s+same-as shared-a11y#touch-target/,
+    );
+    // No level on this one, so no prefix; the target is still named.
+    const rel = headOf('https://example.com/rule');
+    expect(rel?.textContent).toContain('relates-to https://example.com/rule');
+    expect(rel?.querySelector('.list-item-prefix')).toBeNull();
+  });
+
+  it('leaves items without a level as they were', () => {
+    setup({
+      ...component,
+      sections: [{ kind: 'guidelines', for: 'all', title: 'Versioning', items: [] }],
+    });
+    const head = headOf('guidelines: Versioning');
+    expect(head).toBeTruthy();
+    expect(head?.querySelector('.list-item-prefix')).toBeNull();
+  });
+
+  it('shows a long statement in full up to a generous length, then shortens it', () => {
+    const long = 'word '.repeat(60).trim();
+    setup(guidelines([{ level: 'must', statement: long }]));
+    const text = headOf('word word')?.textContent ?? '';
+    expect(text).toContain('MUST:');
+    expect(text.endsWith('…')).toBe(true);
+    expect(text.length).toBeLessThan(long.length);
+  });
+});
+
 describe('schema-driven form', () => {
   it('gives every icon button a name and a hover hint', () => {
     setup(component);

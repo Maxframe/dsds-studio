@@ -13,7 +13,10 @@ import {
   defaultValueFor,
   effective,
   kindOptions,
+  containsChoices,
+  variantChoices,
   type EffectiveSchema,
+  type VariantChoice,
   type SchemaNode,
 } from '@shared/schema';
 import { buildPointer } from '@shared/pointer';
@@ -292,19 +295,44 @@ function ObjectFields({
   );
 }
 
-/** A short human label for a list item, read from whatever identifying text it has. */
-function itemLabel(item: unknown, index: number): string {
-  if (typeof item === 'string') return item;
+const LABEL_MAX = 120;
+
+/** An item that only points elsewhere has no text of its own: say where, like `same-as shared-a11y#x`. */
+function pointerText(refs: unknown): string | undefined {
+  const first = (Array.isArray(refs) ? refs : []).find(
+    (r): r is Record<string, unknown> =>
+      typeof r === 'object' &&
+      r !== null &&
+      (typeof r.to === 'string' || typeof r.href === 'string'),
+  );
+  if (!first) return undefined;
+  return [first.rel, first.to ?? first.href].filter((v) => typeof v === 'string').join(' ');
+}
+
+/**
+ * A short human label for a list item, read from whatever identifying text it has. An item with a
+ * requirement `level` (a guideline) gets it as a prefix, like "SHOULD", so a collapsed item still
+ * says how strongly it is meant.
+ */
+function itemParts(item: unknown, index: number): { prefix: string; text: string } {
+  if (typeof item === 'string') return { prefix: '', text: item };
   if (item && typeof item === 'object') {
     const o = item as Record<string, unknown>;
+    const level = typeof o.level === 'string' ? o.level.replace(/-/g, ' ').toUpperCase() : '';
     const kind = typeof o.kind === 'string' ? o.kind : '';
-    const text = ['title', 'name', 'term', 'statement', 'id', 'to', 'href', 'subject']
-      .map((k) => o[k])
-      .find((v): v is string => typeof v === 'string' && v !== '');
-    const label = [kind, text].filter(Boolean).join(': ');
-    if (label) return label.length > 80 ? `${label.slice(0, 77)}…` : label;
+    const found =
+      ['title', 'name', 'term', 'statement', 'id', 'to', 'href', 'subject']
+        .map((k) => o[k])
+        .find((v): v is string => typeof v === 'string' && v !== '') ?? pointerText(o.refs);
+    const text = [kind, found].filter(Boolean).join(': ');
+    if (text || level) {
+      return {
+        prefix: level,
+        text: text.length > LABEL_MAX ? `${text.slice(0, LABEL_MAX - 1)}…` : text,
+      };
+    }
   }
-  return `#${index + 1}`;
+  return { prefix: '', text: `#${index + 1}` };
 }
 
 function ListField({
@@ -347,14 +375,31 @@ function ListField({
     );
   }
 
-  const add = (seed: unknown, node: SchemaNode) => {
-    const item = defaultValueFor(ctx.bundle, node, seed);
+  /** Put a ready item at the end of the list (making the list, if the field was empty). */
+  const put = (item: unknown) =>
     void ctx.apply([
       Array.isArray(value)
         ? { op: 'append', pointer, value: item }
         : { op: 'set', pointer, value: [item] },
     ]);
+  const add = (seed: unknown, node: SchemaNode) => put(defaultValueFor(ctx.bundle, node, seed));
+  /**
+   * The new item for a variant: its required fields, then whatever the item schema adds because of
+   * them (an item that states its own rule needs a `level`; one that points elsewhere does not). If
+   * the item schema cannot use that start, the variant begins it on its own: a pointer starts from
+   * its own `rel` and `to`.
+   */
+  const startOf = (choice: VariantChoice): [unknown, SchemaNode] => {
+    if (choice.text) return [undefined, choice.node];
+    const viaItem = defaultValueFor(ctx.bundle, itemNode, choice.seed);
+    return typeof viaItem === 'object' && viaItem !== null
+      ? [choice.seed, itemNode]
+      : [choice.seed, choice.node];
   };
+  // What this list must hold at least one of (a pointing guideline item: a same-as pointer or a
+  // relates-to link). Offered first, with `rel` already set, until one is there.
+  const required = containsChoices(ctx.bundle, eff);
+  const needed = required.length > 0 && !required.some((c) => items.some((i) => c.satisfiedBy(i)));
   const kinds = kindOptions(ctx.bundle, itemNode);
   const variants =
     !kinds.length && itemEff.variantNodes && itemEff.variantNodes.length > 1
@@ -370,7 +415,7 @@ function ListField({
           listPointer={pointer}
           index={i}
           count={items.length}
-          label={itemLabel(item, i)}
+          {...itemParts(item, i)}
           startOpen={items.length <= 3}
         >
           <SchemaField node={itemNode} value={item} pointer={`${pointer}/${i}`} hide={undefined} />
@@ -391,14 +436,27 @@ function ListField({
         </Select>
       ) : variants.length ? (
         <div className="list-add">
-          {variants.map((v, i) => {
-            const ve = effective(ctx.bundle, v, undefined);
-            return (
-              <Button key={i} variant="outline" onClick={() => add(undefined, v)}>
-                + Add {ve.type === 'string' ? 'text link' : 'pointer'}
-              </Button>
-            );
-          })}
+          {needed
+            ? required.map((choice) => (
+                <Button
+                  key={choice.label}
+                  variant="outline"
+                  onClick={() => put(structuredClone(choice.seed))}
+                >
+                  + Add {choice.label}
+                </Button>
+              ))
+            : null}
+          {variantChoices(ctx.bundle, variants, itemNode).map((choice, i) => (
+            <Button
+              key={i}
+              variant="outline"
+              title={choice.description}
+              onClick={() => add(...startOf(choice))}
+            >
+              + Add {choice.label}
+            </Button>
+          ))}
         </div>
       ) : (
         <Button variant="outline" onClick={() => add(undefined, itemNode)}>
@@ -414,7 +472,9 @@ function ListItem(props: {
   listPointer: string;
   index: number;
   count: number;
-  label: string;
+  /** A requirement level shown in front of the text, like `SHOULD`. */
+  prefix: string;
+  text: string;
   startOpen: boolean;
   children: React.ReactNode;
 }) {
@@ -434,7 +494,10 @@ function ListItem(props: {
           onClick={() => setToggled(!open)}
           aria-expanded={open}
         >
-          {open ? '▾' : '▸'} {props.label}
+          {open ? '▾' : '▸'}{' '}
+          {props.prefix ? <span className="list-item-prefix">{props.prefix}</span> : null}
+          {props.prefix && props.text ? ': ' : null}
+          {props.text}
         </button>
         <span className="list-item-actions">
           <IconButton

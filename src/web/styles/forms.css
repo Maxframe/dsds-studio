@@ -77,6 +77,10 @@
   gap: var(--space-sm);
   padding: var(--space-xs) var(--space-sm);
 }
+.list-item-head .link-button {
+  flex: 1;
+  min-width: 0;
+}
 .list-item-actions {
   display: flex;
   gap: var(--space-xs);

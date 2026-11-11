@@ -29,6 +29,11 @@ export interface EffectiveSchema {
   refNames: string[];
   /** When the schema allows several different shapes (e.g. a link as text OR as an object). */
   variantNodes?: SchemaNode[];
+  /**
+   * What the list has to contain at least one of (`contains`): the alternatives an item may match.
+   * Empty when the schema does not say.
+   */
+  contains?: SchemaNode[];
   /** The object's keys have to match this pattern (e.g. namespaced `$extensions` keys). */
   keyPattern?: string;
 }
@@ -56,6 +61,12 @@ export function effective(bundle: SchemaBundle, node: SchemaNode, value: unknown
     const s = frag.schema;
     const sub = (x: unknown): Fragment => ({ schema: x as JsonSchema, resource: frag.resource });
     eff.refNames.push(...frag.refNames);
+
+    if (isObject(s.contains)) {
+      const wanted = bundle.deref(sub(s.contains)).schema;
+      const alternatives = Array.isArray(wanted.anyOf) ? wanted.anyOf.map(sub) : [sub(s.contains)];
+      eff.contains = [...(eff.contains ?? []), ...alternatives.map(nodeOf)];
+    }
 
     eff.type ??= typeof s.type === 'string' ? s.type : undefined;
     eff.title ??= str(s.title);
@@ -191,4 +202,118 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 function firstExample(s: JsonSchema): unknown {
   if ('example' in s) return s.example;
   return Array.isArray(s.examples) ? s.examples[0] : undefined;
+}
+
+export interface VariantChoice {
+  /** What the "Add" button says, after "+ Add". */
+  label: string;
+  /** What the choice means, from the schema (a tooltip). */
+  description?: string;
+  /** A plain-text alternative (a bare string), as opposed to an object. */
+  text: boolean;
+  /** For an object alternative: its required fields, empty, to start a new item from. */
+  seed?: Record<string, unknown>;
+  node: SchemaNode;
+}
+
+/**
+ * The alternatives a list item can take (`oneOf`/`anyOf`), named so an "Add" button for each is
+ * distinguishable. A text alternative is a "text link", the only object alternative next to it a
+ * "pointer". When several object alternatives differ, each is named by the field it requires that
+ * the others do not, read from the schema, e.g. a guideline item is either a `statement` or `refs`.
+ * `parent` is where those fields are described, for the tooltip.
+ */
+export function variantChoices(
+  bundle: SchemaBundle,
+  variants: SchemaNode[],
+  /** The item schema the variants belong to: where the fields they require are described. */
+  parent?: SchemaNode,
+): VariantChoice[] {
+  const parentEff = parent ? effective(bundle, parent, undefined) : null;
+  const effs = variants.map((v) => effective(bundle, v, undefined));
+  const objects = effs.filter((e) => e.type !== 'string');
+  const required = effs.map((e) => new Set(e.required));
+  const labels = variants.map((node, i): VariantChoice => {
+    const e = effs[i] as EffectiveSchema;
+    // A variant that says it is an object knows its own required fields, including a choice inside
+    // it (a pointer is `to` or `href`), so it can start itself. One that is only `required: [...]`
+    // has no `type`: build its starting value from the required fields instead, taking their
+    // defaults from the parent's full definition (a variant may hold only a fragment of it).
+    const started = defaultValueFor(bundle, node, undefined);
+    const base: Record<string, unknown> =
+      typeof started === 'object' && started !== null ? { ...started } : {};
+    const seed: Record<string, unknown> = { ...base };
+    for (const k of e.required) {
+      const prop = parentEff?.properties.find((p) => p.key === k);
+      if (prop) seed[k] = defaultValueFor(bundle, prop.node);
+      else if (!(k in base)) seed[k] = '';
+    }
+    if (e.type === 'string') return { label: 'text link', text: true, node };
+    if (objects.length <= 1) return { label: 'pointer', text: false, seed, node };
+    const own = e.required.find((k) => !required.every((r) => r.has(k)));
+    const prop = own
+      ? (parentEff?.properties.find((p) => p.key === own) ??
+        e.properties.find((p) => p.key === own))
+      : undefined;
+    return {
+      label: own ?? 'item',
+      text: false,
+      seed,
+      description: prop ? effective(bundle, prop.node, undefined).description : undefined,
+      node,
+    };
+  });
+  // Never two identical buttons: number any that still collide.
+  const seen = new Map<string, number>();
+  return labels.map((c) => {
+    const n = (seen.get(c.label) ?? 0) + 1;
+    seen.set(c.label, n);
+    return n > 1 || labels.filter((o) => o.label === c.label).length > 1
+      ? { ...c, label: `${c.label} ${n}` }
+      : c;
+  });
+}
+
+export interface ContainsChoice {
+  /** What the "Add" button says, after "+ Add": for example `same-as pointer`. */
+  label: string;
+  /** A new item that already has the fixed fields (like `rel`) and empty required ones. */
+  seed: Record<string, unknown>;
+  node: SchemaNode;
+  /** Does this item already meet the requirement? */
+  satisfiedBy(item: unknown): boolean;
+}
+
+/**
+ * What a list must contain at least one of (the schema's `contains`), as ready-made starting
+ * points. A guideline item that points elsewhere must hold a `same-as` pointer to something in the
+ * project, or a `relates-to` link outside it; each alternative becomes one choice whose `rel` is
+ * already set. Empty for a list with no such rule.
+ */
+export function containsChoices(bundle: SchemaBundle, list: EffectiveSchema): ContainsChoice[] {
+  return (list.contains ?? []).map((node) => {
+    const e = effective(bundle, node, undefined);
+    const fixed: string[] = [];
+    const seed: Record<string, unknown> = {};
+    const targets: string[] = [];
+    for (const key of e.required) {
+      const prop = e.properties.find((p) => p.key === key);
+      const constant = prop ? effective(bundle, prop.node, undefined).const : undefined;
+      if (constant !== undefined) {
+        seed[key] = constant;
+        if (typeof constant === 'string') fixed.push(constant);
+      } else {
+        seed[key] = '';
+        targets.push(key);
+      }
+    }
+    // `to` points inside the project and `href` outside it, the words the form uses elsewhere.
+    const word = targets.map((k) => (k === 'to' ? 'pointer' : k === 'href' ? 'link' : k)).join(' ');
+    return {
+      label: [...fixed, word].filter(Boolean).join(' '),
+      seed,
+      node,
+      satisfiedBy: (item) => node.fragments.every((f) => fits(bundle, f, item)),
+    };
+  });
 }
