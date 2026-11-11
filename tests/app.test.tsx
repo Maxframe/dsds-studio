@@ -88,7 +88,8 @@ describe('app', () => {
     const before = Node.DOCUMENT_POSITION_FOLLOWING;
     expect(add.compareDocumentPosition(base) & before).toBeTruthy();
     expect(base.compareDocumentPosition(system) & before).toBeTruthy();
-    // The row is labelled "Base"; the file it stands for is its tooltip.
+    // The row has a file icon like the "New entry" row has a plus; the file it stands for is its tooltip.
+    expect(base.querySelector('svg')).toBeTruthy();
     expect(base.getAttribute('title')).toBe('demo-system.dsds.yaml');
   });
 
@@ -460,9 +461,17 @@ describe('app', () => {
     const shell = () => document.querySelector('.project-shell') as HTMLElement;
     const hide = screen.getByRole('button', { name: 'Hide editor panel' });
     expect(hide.getAttribute('aria-pressed')).toBe('true');
+    // Open: the button is in the YAML panel's toolbar, at the window's right edge.
+    expect(hide.closest('.column--right')).toBeTruthy();
     await user.click(hide);
     expect(shell().classList.contains('project-shell--no-panel')).toBe(true);
     expect(localStorage.getItem('dsds-studio.panel-open')).toBe('false');
+    // Collapsed: the same control is now in the form's toolbar, which has become the right edge, and
+    // it keeps the keyboard focus the click gave it.
+    const show = screen.getByRole('button', { name: 'Show editor panel' });
+    expect(show.closest('.column--right')).toBeNull();
+    expect(show.closest('main')).toBeTruthy();
+    expect(document.activeElement).toBe(show);
     // The editor stays mounted, so its text is still there when the panel comes back.
     expect(yamlText()).toContain('schemaVersion');
     await user.click(screen.getByRole('button', { name: 'Show editor panel' }));

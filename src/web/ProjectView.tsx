@@ -1,5 +1,5 @@
 import { ArrowLeft, PanelRight } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
 import { fieldUsage } from '@shared/field-usage';
 import { getAtPointer } from '@shared/pointer';
@@ -89,7 +89,17 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const [settings, updateSettings] = useSettings();
   const [widths, setWidths] = useState<Widths>(loadWidths);
   const [panelOpen, setPanelOpen] = useState(loadPanelOpen);
-  const togglePanel = () =>
+  // The toggle sits at the window's right edge in both states: in the YAML panel's toolbar while it
+  // is open, in the form's toolbar once it is collapsed. It is a different element then, so focus
+  // is moved to it after a click, and the keyboard user stays on the control.
+  const refocusToggle = useRef(false);
+  useEffect(() => {
+    if (!refocusToggle.current) return;
+    refocusToggle.current = false;
+    document.getElementById('panel-toggle')?.focus();
+  }, [panelOpen]);
+  const togglePanel = () => {
+    refocusToggle.current = true;
     setPanelOpen((open) => {
       try {
         localStorage.setItem(PANEL_KEY, String(!open));
@@ -98,6 +108,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       }
       return !open;
     });
+  };
   const resize = (key: keyof Widths) => (px: number) =>
     setWidths((cur) => {
       const next = { ...cur, [key]: Math.round(px) };
@@ -465,6 +476,20 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     );
   }
 
+  const panelToggle = (
+    <IconButton
+      id="panel-toggle"
+      variant="ghost"
+      size="icon"
+      className="ml-auto"
+      label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
+      aria-pressed={panelOpen}
+      onClick={togglePanel}
+    >
+      <PanelRight />
+    </IconButton>
+  );
+
   return (
     <div
       className={cn('project-shell', !panelOpen && 'project-shell--no-panel')}
@@ -515,22 +540,13 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       <main className="column">
         <header className="toolbar">
           {toolbarMain}
-          <IconButton
-            variant="ghost"
-            size="icon"
-            className="ml-auto"
-            label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
-            aria-pressed={panelOpen}
-            onClick={togglePanel}
-          >
-            <PanelRight />
-          </IconButton>
+          {panelOpen ? null : panelToggle}
         </header>
         <div className="pane">{editor}</div>
       </main>
       <Resizer side="right" label="Resize YAML panel" onResize={resize('panel')} />
       <aside className="column column--right">
-        <header className="toolbar" />
+        <header className="toolbar">{panelOpen ? panelToggle : null}</header>
         {open ? (
           <YamlPanel
             key={open.path}

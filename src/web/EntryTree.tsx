@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, Plus } from 'lucide-react';
+import { ChevronRight, FileText, Plus } from 'lucide-react';
 import { cn } from '@web/lib/utils';
 import { Button } from '@web/components/ui/button';
 import {
@@ -218,7 +218,10 @@ export function EntryTree(props: {
                 onClick={() => onSelect(sel)}
               >
                 {/* The first document is the base (DSDS: the top-level container); others by file. */}
-                <span className="truncate">{i === 0 ? 'Base' : d.path}</span>
+                <span className="flex min-w-0 items-center gap-2">
+                  <FileText aria-hidden className="size-4 shrink-0" />
+                  <span className="truncate">{i === 0 ? 'Base' : d.path}</span>
+                </span>
                 {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
               </TreeButton>
             </div>
