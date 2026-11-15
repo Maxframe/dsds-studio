@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@web/components/ui/select';
 import { Textarea } from '@web/components/ui/textarea';
+import type { RefTarget } from '@shared/types';
 import { useForm } from './context';
 import { RefCombobox } from './RefCombobox';
 
@@ -134,19 +135,67 @@ export function BooleanWidget({ pointer, value, onCommit }: Common) {
   );
 }
 
+/** An entry's id: changing it asks first, because what points at it would break. */
+export function EntryIdWidget({ pointer, value, onCommit }: Common) {
+  const { requestIdChange } = useForm();
+  const current = typeof value === 'string' ? value : '';
+  const { text: draft, set } = useDraft(current);
+  const commit = () => {
+    if (draft === current) return;
+    // A new entry with no id yet has nothing to break.
+    if (current === '') onCommit(draft);
+    else
+      requestIdChange(current, draft, {
+        pointer,
+        commit: () => onCommit(draft),
+        cancel: () => set(current),
+      });
+  };
+  return (
+    <Input
+      id={pointer}
+      type="text"
+      value={draft}
+      onChange={(e) => set(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+    />
+  );
+}
+
 /** A `to` pointer: pick the project's entries and item addresses, or type another target. */
 export function RefTargetWidget(props: Common) {
-  const { targets } = useForm();
+  const { targets, valueAt } = useForm();
   const value = typeof props.value === 'string' ? props.value : '';
   const known = value === '' || targets.some((t) => t.target === value);
+  // A `same-as` pointer reuses one item's content, so it must name an item of the same section kind
+  // as the item that reuses it (Processing §4, DSDS-25). Say so, and offer only those.
+  const parent = props.pointer.slice(0, props.pointer.lastIndexOf('/'));
+  const kind =
+    valueAt(`${parent}/rel`) === 'same-as' ? sectionKindAt(valueAt, props.pointer) : null;
+  const sameKind = (t: RefTarget) => t.type === 'item' && t.sectionKind === kind;
+  const current = targets.find((t) => t.target === value);
   return (
     <>
-      <RefCombobox {...props} targets={targets} />
+      <RefCombobox {...props} targets={kind ? targets.filter(sameKind) : targets} />
       {!known ? (
         <div className="field-note field-note--warning">Not found in this project.</div>
       ) : null}
+      {kind && current && !sameKind(current) ? (
+        <div className="field-note field-note--warning">
+          This is not a {kind} item. A same-as pointer must name an item of the same kind.
+        </div>
+      ) : null}
+      {kind ? <div className="field-note">Only {kind} items can be reused here.</div> : null}
     </>
   );
+}
+
+/** The kind of the section a pointer sits in (the last `/sections/N` in it), or null if not stated. */
+function sectionKindAt(valueAt: (pointer: string) => unknown, pointer: string): string | null {
+  const section = /^(.*\/sections\/\d+)(\/|$)/.exec(pointer)?.[1];
+  const kind = section ? valueAt(`${section}/kind`) : undefined;
+  return typeof kind === 'string' ? kind : null;
 }
 
 /**

@@ -81,6 +81,24 @@
   flex: 1;
   min-width: 0;
 }
+.reused-content {
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-control);
+}
+.reused-content dl {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+}
+.reused-content dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
+}
+.reused-content dd {
+  margin: 0;
+}
 .list-item-actions {
   display: flex;
   gap: var(--space-xs);

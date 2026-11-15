@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { SchemaBundle } from '@shared/schema';
-import type { EditOp, Finding, RefTarget } from '@shared/types';
+import type { EditOp, Finding, RefTarget, ResolvedItem } from '@shared/types';
 
 export interface FormContext {
   bundle: SchemaBundle;
@@ -12,6 +12,19 @@ export interface FormContext {
   usage(pointer: string): Map<string, number>;
   /** The namespace a new custom value (like a custom kind) gets, so nobody has to type it. */
   namespace: string;
+  /** The value in the open document at a pointer (to read a sibling field, like a ref's `rel`). */
+  valueAt(pointer: string): unknown;
+  /** What the resolver works out for the item at `pointer` when it reuses another (§4), else nothing. */
+  reused(pointer: string): ResolvedItem | undefined;
+  /**
+   * An entry's id is about to change. Published ids should not change (Specification §3.1), and
+   * what points at it breaks, so the project may ask first: it then calls `commit` or `cancel`.
+   */
+  requestIdChange(
+    from: string,
+    to: string,
+    done: { pointer: string; commit(): void; cancel(): void },
+  ): void;
   /** Pointer to scroll to and highlight (set by clicking a validation finding). */
   focus: string | null;
 }

@@ -92,11 +92,11 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
 - [x] Custom kinds take a plain name: the namespace the schema requires (`acme.widget`) is added from
       the project already uses (else the system entry's id) and hidden everywhere (sidebar, kind field, diff). Reported by use
       [Style/schema: `common/id` namespaced pattern]
-- [ ] `same-as` target picker offers only items of the same section kind [Processing §4; DSDS-25]
-- [ ] Warn before editing an `id`: published ids should not change; show what refers to it and offer
+- [x] `same-as` target picker offers only items of the same section kind [Processing §4; DSDS-25]
+- [x] Warn before editing an `id` (entry ids that something points at; offers to update the pointers): published ids should not change; show what refers to it and offer
       to change the name instead [Style guide §6; Specification §3.1; CHANGELOG 0.23.0]
-- [ ] "Used by" panel on each entry from the resolver's `incoming` pointers [Processing §5; Conformance §2]
-- [ ] Show a reusing item's effective content (level, statement) from its `same-as` target
+- [x] "Used by" panel on each entry from the resolver's `incoming` pointers [Processing §5; Conformance §2]
+- [x] Show a reusing item's effective content (level, statement) from its `same-as` target
       [Processing §4; CHANGELOG 0.21.1]
 - [ ] Follow and show the successor of a deprecated entry [Processing §5, §7]
 - [ ] Offer to declare `metadata.platforms` when creating a project [Conformance §9]

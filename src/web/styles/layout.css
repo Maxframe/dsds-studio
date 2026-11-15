@@ -346,6 +346,18 @@
 .diff-status--removed {
   color: var(--color-error);
 }
+.used-by {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+.used-by ul {
+  display: grid;
+  gap: var(--space-2xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .history-title {
   margin: 0;
   font-size: var(--text-small);

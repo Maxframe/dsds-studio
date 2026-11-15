@@ -21,6 +21,7 @@ import {
 } from '@shared/schema';
 import { insertOps, listRanker, sortMoves } from '@shared/order';
 import { buildPointer } from '@shared/pointer';
+import type { ResolvedItem } from '@shared/types';
 import { findingsAt, useForm } from './context';
 import { IconButton } from '../IconButton';
 import { RemoveField } from './RemoveField';
@@ -28,6 +29,7 @@ import {
   BooleanWidget,
   NumberWidget,
   RawYamlWidget,
+  EntryIdWidget,
   RefTargetWidget,
   SelectWidget,
   TextWidget,
@@ -122,7 +124,9 @@ export function SchemaField({
     case 'text': {
       const standard = eff.suggestions?.filter((s): s is string => typeof s === 'string') ?? [];
       const placeholder = typeof eff.example === 'string' ? eff.example : undefined;
-      body = standard.length ? (
+      body = isEntryId(pointer) ? (
+        <EntryIdWidget {...common} />
+      ) : standard.length ? (
         <OpenSetWidget
           {...common}
           standard={standard}
@@ -302,6 +306,9 @@ function ObjectFields({
   );
 }
 
+/** An entry's own id (`/entries/3/id`, `/shared/0/id`, or `/id` in a standalone entry file). */
+const isEntryId = (pointer: string) => /^(\/(entries|shared)\/\d+)?\/id$/.test(pointer);
+
 const LABEL_MAX = 120;
 
 /** An item that only points elsewhere has no text of its own: say where, like `same-as shared-a11y#x`. */
@@ -321,10 +328,16 @@ function pointerText(refs: unknown): string | undefined {
  * requirement `level` (a guideline) gets it as a prefix, like "SHOULD", so a collapsed item still
  * says how strongly it is meant.
  */
-function itemParts(item: unknown, index: number): { prefix: string; text: string } {
+function itemParts(
+  item: unknown,
+  index: number,
+  reused?: Record<string, unknown>,
+): { prefix: string; text: string } {
   if (typeof item === 'string') return { prefix: '', text: item };
   if (item && typeof item === 'object') {
-    const o = item as Record<string, unknown>;
+    // An item that reuses another is read as its effective content (§4): its own fields over the
+    // reused ones.
+    const o = { ...reused, ...(item as Record<string, unknown>) };
     const level = typeof o.level === 'string' ? o.level.replace(/-/g, ' ').toUpperCase() : '';
     const kind = typeof o.kind === 'string' ? o.kind : '';
     const found =
@@ -355,6 +368,7 @@ function ListField({
 }) {
   const ctx = useForm();
   const items = Array.isArray(value) ? value : [];
+  const reusing = (i: number) => ctx.reused(`${pointer}/${i}`);
   const itemNode = eff.items as SchemaNode;
   const itemEff = effective(ctx.bundle, itemNode, undefined);
 
@@ -436,7 +450,8 @@ function ListField({
           listPointer={pointer}
           index={i}
           count={items.length}
-          {...itemParts(item, i)}
+          {...itemParts(item, i, reusing(i)?.content)}
+          reused={reusing(i)}
           startOpen={items.length <= 3}
         >
           <SchemaField node={itemNode} value={item} pointer={`${pointer}/${i}`} hide={undefined} />
@@ -501,11 +516,35 @@ function ListField({
   );
 }
 
+/** What a reader sees for an item that reuses another: the content it takes from what it reuses. */
+function ReusedContent({ item }: { item: ResolvedItem }) {
+  const fields = Object.entries(item.content ?? {}).filter(([, v]) => typeof v === 'string');
+  return (
+    <div className="reused-content">
+      <p className="field-note">
+        Reuses {item.reuses}
+        {item.origin && item.origin !== item.reuses ? `, which takes it from ${item.origin}` : ''}.
+        Edit the content there; this is what a reader sees here.
+      </p>
+      <dl>
+        {fields.map(([field, value]) => (
+          <div key={field}>
+            <dt>{field}</dt>
+            <dd>{String(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function ListItem(props: {
   pointer: string;
   listPointer: string;
   index: number;
   count: number;
+  /** The resolver's view of an item that reuses another (§4): its effective content and source. */
+  reused?: ResolvedItem;
   /** A requirement level shown in front of the text, like `SHOULD`. */
   prefix: string;
   text: string;
@@ -532,6 +571,14 @@ function ListItem(props: {
           {props.prefix ? <span className="list-item-prefix">{props.prefix}</span> : null}
           {props.prefix && props.text ? ': ' : null}
           {props.text}
+          {props.reused ? (
+            <>
+              {' '}
+              <span className="badge" title={`Reuses ${props.reused.reuses}`}>
+                reused
+              </span>
+            </>
+          ) : null}
         </button>
         <span className="list-item-actions">
           <IconButton
@@ -562,7 +609,12 @@ function ListItem(props: {
           </IconButton>
         </span>
       </div>
-      {open ? <div className="list-item-body">{props.children}</div> : null}
+      {open ? (
+        <div className="list-item-body">
+          {props.reused ? <ReusedContent item={props.reused} /> : null}
+          {props.children}
+        </div>
+      ) : null}
     </div>
   );
 }

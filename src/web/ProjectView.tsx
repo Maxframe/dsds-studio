@@ -14,12 +14,15 @@ import type {
   Finding,
   ProjectOverview,
   RefTarget,
+  ResolvedProject,
   VersionInfo,
 } from '@shared/types';
 import { api } from './api';
 import { cn } from '@web/lib/utils';
 import { Button } from '@web/components/ui/button';
 import { SettingsMenu } from './SettingsMenu';
+import { IdChangeDialog, type IdChange } from './IdChangeDialog';
+import { UsedBy } from './UsedBy';
 import { useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
 import { IconButton } from './IconButton';
@@ -32,6 +35,13 @@ import { YamlPanel } from './YamlPanel';
 import { useYamlAutosave } from './useYamlAutosave';
 import { FormProvider, type FormContext } from './form/context';
 import { SchemaField } from './form/SchemaField';
+
+/** What to do with each answer to "change this id?". */
+interface IdChangeActions {
+  cancel(): void;
+  only(): void;
+  update(): Promise<void>;
+}
 
 /** The field both views are looking at. `source` is the view it came from. */
 interface Focus {
@@ -86,6 +96,9 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const [draft, setDraft] = useState<DraftState | null>(null);
   const [reload, setReload] = useState(0);
   const [targets, setTargets] = useState<RefTarget[]>([]);
+  const [resolved, setResolved] = useState<ResolvedProject | null>(null);
+  // An entry id waiting for a yes: what changes, and what to do with each answer.
+  const [idChange, setIdChange] = useState<(IdChange & IdChangeActions) | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -135,6 +148,10 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
           .targets(slug)
           .then(setTargets)
           .catch(() => setTargets([]));
+        api
+          .resolved(slug)
+          .then(setResolved)
+          .catch(() => setResolved(null));
       }),
     [slug],
   );
@@ -218,6 +235,66 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     [overview, slug],
   );
 
+  // What the resolver works out for an item of the open entry that reuses another (§4), by pointer.
+  const reusedAt = useCallback(
+    (pointer: string) => {
+      const entry =
+        selection?.type === 'entry'
+          ? overview?.entries.find(
+              (e) => e.file === selection.file && e.pointer === selection.pointer,
+            )
+          : undefined;
+      if (!entry || !resolved || (entry.pointer && !pointer.startsWith(`${entry.pointer}/`))) {
+        return undefined;
+      }
+      const relative = pointer.slice(entry.pointer.length);
+      return resolved.entries[entry.id]?.items.find((i) => i.pointer === relative && i.reuses);
+    },
+    [selection, overview, resolved],
+  );
+
+  /**
+   * An entry's id is about to change. If nothing points at it, go ahead. Otherwise ask: what
+   * points at it would break (Specification §3.1), and the pointers can be updated with it.
+   */
+  const requestIdChange = useCallback<FormContext['requestIdChange']>(
+    (from, to, done) => {
+      const incoming = resolved?.entries[from]?.incoming ?? [];
+      if (incoming.length === 0) {
+        done.commit();
+        return;
+      }
+      setIdChange({
+        from,
+        to,
+        count: incoming.length,
+        cancel: done.cancel,
+        only: done.commit,
+        update: async () => {
+          // Every pointer to the old id, written as a `set` of its `to` in the entry that holds it,
+          // keeping an item address (`old#rule` becomes `new#rule`). The id change itself rides in
+          // the same request as the changes to the open file, so that file is written once.
+          const byFile = new Map<string, EditOp[]>([
+            [open?.path ?? '', [{ op: 'set', pointer: done.pointer, value: to }]],
+          ]);
+          for (const i of incoming) {
+            const holder = overview?.entries.find((e) => e.id === i.from.split('#')[0]);
+            if (!holder) continue;
+            const ops = byFile.get(holder.file) ?? [];
+            ops.push({
+              op: 'set',
+              pointer: `${holder.pointer}${i.pointer.slice(holder.id.length)}/to`,
+              value: `${to}${i.at ? `#${i.at}` : ''}`,
+            });
+            byFile.set(holder.file, ops);
+          }
+          for (const [file, ops] of byFile) await applyTo(file, ops);
+        },
+      });
+    },
+    [resolved, overview, open, applyTo],
+  );
+
   const ctx: FormContext | null = useMemo(
     () =>
       bundle && open
@@ -229,10 +306,24 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             usage: (pointer) =>
               fieldUsage(open.state.value, pointer, open.path, overview?.entries ?? []),
             namespace,
+            valueAt: (pointer) => getAtPointer(open.state.value, pointer),
+            reused: (pointer) => reusedAt(pointer),
+            requestIdChange,
             focus: formFocus,
           }
         : null,
-    [bundle, open, applyTo, validation, targets, overview, formFocus, namespace],
+    [
+      bundle,
+      open,
+      applyTo,
+      validation,
+      targets,
+      overview,
+      formFocus,
+      namespace,
+      reusedAt,
+      requestIdChange,
+    ],
   );
 
   // Bring the form to a field the other view pointed at.
@@ -255,6 +346,13 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       overview?.entries.find((e) => e.file === selFile && e.pointer === ''),
     [overview, selFile],
   );
+
+  /** Open the entry that holds a pointer, at that pointer: the "Used by" rows. */
+  const goToPointer = (entry: EntrySummary, relative: string) => {
+    void flushYaml();
+    setSelected({ type: 'entry', file: entry.file, pointer: entry.pointer, origin: entry.origin });
+    setFocus({ pointer: `${entry.pointer}${relative}`, source: 'jump' });
+  };
 
   const select = (s: Selection) => {
     void flushYaml();
@@ -419,6 +517,20 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     }
   };
 
+  const answerIdChange = async (how: 'cancel' | 'only' | 'update') => {
+    const pending = idChange;
+    setIdChange(null);
+    if (!pending) return;
+    try {
+      if (how === 'cancel') pending.cancel();
+      else if (how === 'only') pending.only();
+      else await pending.update();
+    } catch (err) {
+      setNotice((err as Error).message);
+      pending.cancel();
+    }
+  };
+
   if (error) {
     return (
       <div className="picker">
@@ -493,6 +605,13 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             />
           </div>
         ) : null}
+        {summary && resolved?.entries[summary.id]?.incoming ? (
+          <UsedBy
+            incoming={resolved.entries[summary.id]?.incoming ?? []}
+            entries={overview.entries}
+            onGo={goToPointer}
+          />
+        ) : null}
       </FormProvider>
     );
   }
@@ -558,6 +677,12 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
           />
         </div>
       </aside>
+      <IdChangeDialog
+        change={idChange}
+        onCancel={() => void answerIdChange('cancel')}
+        onOnly={() => void answerIdChange('only')}
+        onUpdate={() => void answerIdChange('update')}
+      />
       <Resizer side="left" label="Resize sidebar" onResize={resize('sidebar')} />
       <main className="column">
         <header className="toolbar">

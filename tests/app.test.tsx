@@ -54,6 +54,52 @@ async function openNewProject(user: ReturnType<typeof userEvent.setup>) {
     },
   );
 }
+/** A project where entries point at each other: a component uses a token and reuses a shared rule. */
+const REFS_BASE = `schemaVersion: "0.23.1"
+name: Demo System
+entries:
+  - kind: system
+    id: demo-system
+    name: Demo System
+    description: A system.
+  - kind: token
+    id: color.action
+    name: Action colour
+    description: The action colour.
+    tokenType: color
+  - kind: component
+    id: dialog
+    name: Dialog
+    description: A dialog.
+    uses:
+      - to: color.action
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: touch
+            refs:
+              - to: shared-a11y#touch-target
+                rel: same-as
+shared:
+  - id: shared-a11y
+    name: Shared accessibility
+    description: Rules for everyone.
+    sections:
+      - kind: guidelines
+        for: all
+        items:
+          - id: touch-target
+            level: must
+            statement: Touch targets are at least 44 points.
+`;
+async function openRefsProject(user: ReturnType<typeof userEvent.setup>) {
+  await openNewProject(user);
+  writeFileSync(join(ws.root, 'demo-system', 'demo-system.dsds.yaml'), REFS_BASE);
+  await user.click(screen.getByRole('button', { name: 'Back to projects' }));
+  await user.click(await screen.findByRole('button', { name: /demo-system/ }));
+}
+
 const yamlText = () => document.querySelector('.cm-content')?.textContent ?? '';
 
 describe('app', () => {
@@ -586,6 +632,147 @@ describe('app', () => {
       );
       expect(kindsInFile()).toContain('acme.notes');
       expect(kindsInFile()).not.toContain('demo-system.notes');
+    });
+  });
+
+  describe('Used by: what points at an entry (Processing §5)', () => {
+    const panel = () => screen.queryByRole('region', { name: 'Used by' });
+
+    it('lists the entries that point at the open one, with how', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Action colour' }));
+      const used = await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      expect(within(used).getByRole('button', { name: /Dialog/ }).textContent).toMatch(
+        /Dialog.*uses/,
+      );
+    });
+
+    it('names the item that holds the pointer, and what it points at inside this entry', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Shared accessibility' }));
+      const used = await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      const row = within(used).getByRole('button', { name: /Dialog/ });
+      expect(row.textContent).toMatch(/Dialog.*touch.*same-as.*touch-target/);
+    });
+
+    it('jumps to the pointer in the other entry', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Action colour' }));
+      const used = await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      await user.click(within(used).getByRole('button', { name: /Dialog/ }));
+      await waitFor(() =>
+        expect(document.querySelector('.toolbar-heading')?.textContent).toBe('Dialog'),
+      );
+      // The field that holds the pointer is the one in view and highlighted.
+      expect(document.getElementById('/entries/2/uses/0/to')).toBeTruthy();
+    });
+
+    it('shows nothing for an entry nothing points at', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Dialog' }));
+      await waitFor(() =>
+        expect(document.querySelector('.toolbar-heading')?.textContent).toBe('Dialog'),
+      );
+      expect(panel()).toBeNull();
+    });
+  });
+
+  describe('changing an entry id that other entries point at', () => {
+    const baseFile = () => join(ws.root, 'demo-system', 'demo-system.dsds.yaml');
+    const idInput = (pointer: string) => document.getElementById(pointer) as HTMLInputElement;
+    const rename = async (
+      user: ReturnType<typeof userEvent.setup>,
+      pointer: string,
+      id: string,
+    ) => {
+      await user.clear(idInput(pointer));
+      await user.type(idInput(pointer), id);
+      await user.tab();
+    };
+
+    it('asks first, saying what would break, and cancelling keeps the id', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Action colour' }));
+      await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      await rename(user, '/entries/1/id', 'color.primary');
+      const dialog = await screen.findByRole('dialog');
+      expect(within(dialog).getByText(/1 place points at color\.action/)).toBeTruthy();
+      expect(within(dialog).getByText(/change its name instead/i)).toBeTruthy();
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      expect(idInput('/entries/1/id').value).toBe('color.action');
+      expect(readFileSync(baseFile(), 'utf8')).toContain('id: color.action');
+    });
+
+    it('can change the id and update every pointer to it', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Action colour' }));
+      await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      await rename(user, '/entries/1/id', 'color.primary');
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Change id and update 1 pointer',
+        }),
+      );
+      await waitFor(() => expect(readFileSync(baseFile(), 'utf8')).toContain('id: color.primary'), {
+        timeout: 5000,
+      });
+      const text = readFileSync(baseFile(), 'utf8');
+      expect(text).toContain('to: color.primary');
+      expect(text).not.toContain('color.action');
+      expect(await screen.findByText(/0 errors/)).toBeTruthy();
+    });
+
+    it('can change the id alone, leaving the pointers (a choice, with a warning shown)', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Action colour' }));
+      await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      await rename(user, '/entries/1/id', 'color.primary');
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', { name: 'Change id only' }),
+      );
+      await waitFor(() => expect(readFileSync(baseFile(), 'utf8')).toContain('id: color.primary'), {
+        timeout: 5000,
+      });
+      expect(readFileSync(baseFile(), 'utf8')).toContain('to: color.action');
+    });
+
+    it('keeps the item address in a pointer that names an item inside the entry', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Shared accessibility' }));
+      await screen.findByRole('region', { name: 'Used by' }, { timeout: 5000 });
+      await rename(user, '/shared/0/id', 'shared-rules');
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Change id and update 1 pointer',
+        }),
+      );
+      await waitFor(() => expect(readFileSync(baseFile(), 'utf8')).toContain('id: shared-rules'), {
+        timeout: 5000,
+      });
+      expect(readFileSync(baseFile(), 'utf8')).toContain('to: shared-rules#touch-target');
+    });
+
+    it('does not ask when nothing points at the entry', async () => {
+      const user = userEvent.setup();
+      await openRefsProject(user);
+      await user.click(await screen.findByRole('button', { name: 'Dialog' }));
+      await waitFor(() =>
+        expect(document.querySelector('.toolbar-heading')?.textContent).toBe('Dialog'),
+      );
+      await rename(user, '/entries/2/id', 'dialog-box');
+      await waitFor(() => expect(readFileSync(baseFile(), 'utf8')).toContain('id: dialog-box'), {
+        timeout: 5000,
+      });
+      expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
 

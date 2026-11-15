@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SchemaBundle, effective, nodeOf, propertyOf, type JsonSchema } from '@shared/schema';
-import type { EditOp, Finding } from '@shared/types';
+import { getAtPointer } from '@shared/pointer';
+import type { EditOp, Finding, ResolvedItem } from '@shared/types';
 import { FormProvider, type FormContext } from '../src/web/form/context';
 import { SchemaField } from '../src/web/form/SchemaField';
 import './dom-polyfills';
@@ -36,6 +37,9 @@ function setup(value: unknown, extra: Partial<FormContext> = {}) {
     targets: [],
     usage: () => new Map(),
     namespace: 'acme',
+    valueAt: (pointer) => getAtPointer({ entries: [value] }, pointer),
+    reused: () => undefined,
+    requestIdChange: (_from, _to, done) => done.commit(),
     focus: null,
     ...extra,
   };
@@ -615,6 +619,207 @@ describe('schema-driven form', () => {
       ).toEqual(['Use “other.entry”']);
       await user.click(screen.getByRole('option'));
       expect(apply).toHaveBeenCalledWith([{ op: 'set', pointer: toPointer, value: 'other.entry' }]);
+    });
+  });
+
+  describe('a same-as pointer: only items of the same section kind (Processing §4, DSDS-25)', () => {
+    const targets = [
+      { target: 'shared-a11y', label: 'Shared accessibility', type: 'entry' },
+      {
+        target: 'shared-a11y#touch-target',
+        label: 'touch-target',
+        type: 'item',
+        sectionKind: 'guidelines',
+      },
+      { target: 'shared-a11y#focus', label: 'focus', type: 'item', sectionKind: 'guidelines' },
+      { target: 'shared-a11y#target', label: 'target', type: 'item', sectionKind: 'definitions' },
+      { target: 'button#variant', label: 'variant', type: 'trait' },
+    ];
+    const sameAs = (to: string, kind = 'guidelines') => ({
+      ...component,
+      sections: [
+        {
+          kind,
+          for: 'all',
+          items: [{ level: 'must', refs: [{ rel: 'same-as', to }] }],
+        },
+      ],
+    });
+    const toPointer = '/entries/0/sections/0/items/0/refs/0/to';
+    const picker = () => document.getElementById(toPointer) as HTMLInputElement;
+    const options = () =>
+      within(screen.getByRole('listbox'))
+        .getAllByRole('option')
+        .map((o: HTMLElement) => o.textContent);
+
+    it('offers only the items of the same kind as the item that reuses them', async () => {
+      const { user } = setup(sameAs('nowhere'), { targets });
+      await user.click(picker());
+      expect(options()).toEqual(['shared-a11y#touch-targettouch-target', 'shared-a11y#focusfocus']);
+    });
+
+    it('offers definitions to a definition, and says why the list is short', async () => {
+      const { user } = setup(sameAs('nowhere', 'definitions'), { targets });
+      expect(screen.getByText(/Only definitions items can be reused here/)).toBeTruthy();
+      await user.click(picker());
+      expect(options()).toEqual(['shared-a11y#targettarget']);
+    });
+
+    it('still takes a target typed in, such as one in another document', async () => {
+      const { apply, user } = setup(sameAs('nowhere'), { targets });
+      await user.clear(picker());
+      await user.type(picker(), 'other#rule');
+      await user.click(screen.getByRole('option', { name: 'Use “other#rule”' }));
+      expect(apply).toHaveBeenCalledWith([{ op: 'set', pointer: toPointer, value: 'other#rule' }]);
+    });
+
+    it('warns about a target of the wrong kind that is already there', () => {
+      setup(sameAs('shared-a11y#target'), { targets });
+      expect(screen.getByText(/not a guidelines item/i)).toBeTruthy();
+    });
+
+    it('does not warn about a target of the right kind', () => {
+      setup(sameAs('shared-a11y#focus'), { targets });
+      expect(screen.queryByText(/not a guidelines item/i)).toBeNull();
+    });
+
+    it('leaves other pointers alone: a `uses` pointer may name any entry or item', async () => {
+      const { user } = setup({ ...component, uses: [{ to: 'nowhere' }] }, { targets });
+      await user.click(document.getElementById('/entries/0/uses/0/to') as HTMLElement);
+      expect(options()).toHaveLength(targets.length);
+    });
+  });
+
+  describe('a reusing item shows the content it reuses (Processing §4)', () => {
+    const reusing = {
+      ...component,
+      sections: [
+        {
+          kind: 'guidelines',
+          for: 'all',
+          items: [{ refs: [{ rel: 'same-as', to: 'shared-a11y#touch-target' }] }],
+        },
+      ],
+    };
+    const itemPointer = '/entries/0/sections/0/items/0';
+    const effective: ResolvedItem = {
+      address: 'touch-target',
+      type: 'item',
+      pointer: '/sections/0/items/0',
+      reuses: 'shared-a11y#touch-target',
+      origin: 'shared-a11y#touch-target',
+      content: { level: 'must', statement: 'Touch targets are at least 44 points.' },
+    };
+    const reused = (pointer: string) => (pointer === itemPointer ? effective : undefined);
+    const headWith = (text: string) =>
+      [...document.querySelectorAll<HTMLElement>('.list-item-head .link-button')].find((h) =>
+        h.textContent?.includes(text),
+      );
+
+    it('shows the reused level and statement where an item states none of its own', () => {
+      setup(reusing, { reused });
+      const items = [...document.querySelectorAll('.list-item-head .link-button')];
+      const text = items.map((i) => i.textContent).join('|');
+      expect(text).toMatch(/MUST:\s+Touch targets are at least 44 points\./);
+    });
+
+    it('says in the item that the content comes from elsewhere, and from where', () => {
+      setup(reusing, { reused });
+      expect(screen.getByText(/Reuses shared-a11y#touch-target/)).toBeTruthy();
+      expect(
+        screen.getByText(/Touch targets are at least 44 points\./, {
+          selector: '.reused-content *',
+        }),
+      ).toBeTruthy();
+    });
+
+    it("lets an item's own fields win over what it reuses", () => {
+      const own = {
+        ...reusing,
+        sections: [
+          {
+            kind: 'guidelines',
+            for: 'all',
+            items: [
+              {
+                level: 'must',
+                statement: 'Our own wording.',
+                refs: [{ rel: 'same-as', to: 'shared-a11y#touch-target' }],
+              },
+            ],
+          },
+        ],
+      };
+      setup(own, { reused });
+      expect(headWith('Our own wording')?.textContent).toMatch(/MUST:\s+Our own wording\./);
+    });
+
+    it('shows nothing extra for an item that reuses nothing', () => {
+      setup(component, { reused: () => undefined });
+      expect(document.querySelector('.reused-content')).toBeNull();
+    });
+  });
+
+  describe("an entry's id (published ids should not change: Specification §3.1)", () => {
+    const idPointer = '/entries/0/id';
+    const idField = () => document.getElementById(idPointer) as HTMLInputElement;
+
+    it('asks first when the id changes, and applies the change only once told to', async () => {
+      const requestIdChange = vi.fn();
+      const { apply, user } = setup(component, { requestIdChange });
+      await user.clear(idField());
+      await user.type(idField(), 'push-button');
+      await user.tab();
+      expect(requestIdChange).toHaveBeenCalledWith('button', 'push-button', {
+        pointer: idPointer,
+        commit: expect.any(Function),
+        cancel: expect.any(Function),
+      });
+      expect(apply).not.toHaveBeenCalled();
+      requestIdChange.mock.calls[0]?.[2].commit();
+      expect(apply).toHaveBeenCalledWith([{ op: 'set', pointer: idPointer, value: 'push-button' }]);
+    });
+
+    it('puts the old id back in the field when the change is cancelled', async () => {
+      const requestIdChange = vi.fn();
+      const { apply, user } = setup(component, { requestIdChange });
+      await user.clear(idField());
+      await user.type(idField(), 'push-button');
+      await user.tab();
+      act(() => requestIdChange.mock.calls[0]?.[2].cancel());
+      expect(idField().value).toBe('button');
+      expect(apply).not.toHaveBeenCalled();
+    });
+
+    it('does not ask when nothing changed', async () => {
+      const requestIdChange = vi.fn();
+      const { user } = setup(component, { requestIdChange });
+      await user.click(idField());
+      await user.tab();
+      expect(requestIdChange).not.toHaveBeenCalled();
+    });
+
+    it('leaves the ids of items inside an entry alone: they are not entry ids', async () => {
+      const requestIdChange = vi.fn();
+      const { apply, user } = setup(
+        {
+          ...component,
+          sections: [
+            {
+              kind: 'guidelines',
+              for: 'all',
+              items: [{ id: 'rule', level: 'must', statement: 'A.' }],
+            },
+          ],
+        },
+        { requestIdChange },
+      );
+      const item = document.getElementById('/entries/0/sections/0/items/0/id') as HTMLInputElement;
+      await user.clear(item);
+      await user.type(item, 'other');
+      await user.tab();
+      expect(requestIdChange).not.toHaveBeenCalled();
+      expect(apply).toHaveBeenCalled();
     });
   });
 
