@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { parsePlatforms } from '@shared/platforms';
 import type { PackInfo, ProjectInfo } from '@shared/types';
 import { api } from './api';
 import { Button } from '@web/components/ui/button';
@@ -8,6 +9,7 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null);
   const [packs, setPacks] = useState<PackInfo[]>([]);
   const [name, setName] = useState('');
+  const [platformsText, setPlatformsText] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -21,10 +23,13 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
       .catch(() => setPacks([]));
   }, []);
 
+  // What will be written: valid ids, so a typo such as "react native" is seen before it is saved.
+  const platforms = parsePlatforms(platformsText);
+
   const create = async () => {
     setError(null);
     try {
-      const p = await api.createProject(name);
+      const p = await api.createProject(name, platforms);
       onOpen(p.slug);
     } catch (e) {
       setError((e as Error).message);
@@ -59,21 +64,38 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
 
       <h2>New project</h2>
       <form
-        className="row"
+        className="stack"
         onSubmit={(e) => {
           e.preventDefault();
           void create();
         }}
       >
+        <div className="row">
+          <Input
+            placeholder="Design system name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            aria-label="Design system name"
+          />
+          <Button type="submit" variant="default" disabled={!name.trim()}>
+            Create
+          </Button>
+        </div>
         <Input
-          placeholder="Design system name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          aria-label="Design system name"
+          placeholder="Platforms, such as react, ios (optional)"
+          value={platformsText}
+          onChange={(e) => setPlatformsText(e.target.value)}
+          aria-label="Platforms (optional)"
         />
-        <Button type="submit" variant="default" disabled={!name.trim()}>
-          Create
-        </Button>
+        {platforms.length > 0 ? (
+          <p className="field-note" aria-live="polite">
+            Saved as: {platforms.join(', ')}
+          </p>
+        ) : null}
+        <p className="field-note">
+          Separate platforms with commas. Once declared, every platform used in the documents has to
+          be one of these.
+        </p>
       </form>
       {error ? <p className="field-note field-note--error">{error}</p> : null}
     </div>

@@ -29,7 +29,8 @@ export const api = {
   packs: () => call<PackInfo[]>('/api/packs'),
   schema: (version: string) => call<Record<string, unknown>>(`/api/packs/${version}/schema`),
   projects: () => call<ProjectInfo[]>('/api/projects'),
-  createProject: (name: string) => call<ProjectInfo>('/api/projects', post({ name })),
+  createProject: (name: string, platforms: string[] = []) =>
+    call<ProjectInfo>('/api/projects', post({ name, platforms })),
   project: (slug: string) => call<ProjectOverview>(`/api/projects/${slug}`),
   targets: (slug: string) => call<RefTarget[]>(`/api/projects/${slug}/targets`),
   file: (slug: string, path: string) => call<FileState>(`/api/projects/${slug}/file?${q(path)}`),

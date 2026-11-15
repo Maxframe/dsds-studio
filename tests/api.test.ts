@@ -49,6 +49,32 @@ describe('projects', () => {
   });
 });
 
+describe('creating a project with platforms (Conformance §9)', () => {
+  const create = (body: unknown) => api.request('/api/projects', json(body));
+  const systemOf = async () =>
+    (await (await api.request('/api/projects/acme-design/file?path=acme-design.dsds.yaml')).json())
+      .value.entries[0];
+
+  it('declares them on the system entry, as valid ids', async () => {
+    const res = await create({ name: 'Acme Design', platforms: ['React Native', 'iOS', 'ios'] });
+    expect(res.status).toBe(201);
+    expect((await systemOf()).metadata).toEqual({ platforms: ['react-native', 'ios'] });
+    const overview = await (await api.request('/api/projects/acme-design')).json();
+    expect(overview.validation['acme-design.dsds.yaml'].errors).toBe(0);
+  });
+
+  it('adds no metadata when none are given, or none are usable', async () => {
+    await create({ name: 'Acme Design', platforms: ['!!!', ''] });
+    expect((await systemOf()).metadata).toBeUndefined();
+  });
+
+  it('ignores a platforms value that is not a list of text', async () => {
+    const res = await create({ name: 'Acme Design', platforms: 'react' });
+    expect(res.status).toBe(201);
+    expect((await systemOf()).metadata).toBeUndefined();
+  });
+});
+
 describe('saving a file into a folder that does not exist yet', () => {
   const put = (path: string) =>
     api.request(`/api/projects/acme-design/file?path=${encodeURIComponent(path)}`, {

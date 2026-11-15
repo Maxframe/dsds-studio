@@ -64,12 +64,18 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
   app.get('/api/projects', (c) => c.json(workspace.list()));
 
   app.post('/api/projects', async (c) => {
-    const { name } = (await c.req.json().catch(() => ({}))) as { name?: string };
+    const { name, platforms } = (await c.req.json().catch(() => ({}))) as {
+      name?: string;
+      platforms?: unknown;
+    };
     const pack = listPacks()[0];
     if (!name?.trim()) return fail('Name is required');
     if (!pack) return fail('No schema pack installed. Run: npm run pack:add -- v0.23.1');
     try {
-      return c.json(workspace.create(name, pack.version), 201);
+      const declared = Array.isArray(platforms)
+        ? platforms.filter((p): p is string => typeof p === 'string')
+        : [];
+      return c.json(workspace.create(name, pack.version, declared), 201);
     } catch (e) {
       return fail((e as Error).message, /exists/.test((e as Error).message) ? 409 : 400);
     }

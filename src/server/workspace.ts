@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { normalizePlatforms } from '@shared/platforms';
 import { commitInitialVersion } from './projects/versions';
 
 export const DEFAULT_WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../workspace');
@@ -43,10 +44,11 @@ export class Workspace {
   }
 
   /**
-   * Create a project: a folder, `git init`, and a starter base document with one system entry.
+   * Create a project: a folder, `git init`, and a starter base document with one system entry. The
+   * platforms the system ships on, if given, are declared on that entry (`metadata.platforms`).
    * Throws if the name gives no usable slug or the project exists.
    */
-  create(name: string, schemaVersion: string): ProjectInfo {
+  create(name: string, schemaVersion: string, platforms: readonly string[] = []): ProjectInfo {
     const slug = slugify(name);
     if (!SLUG.test(slug)) throw new Error('Name must contain letters or digits');
     const dir = join(this.root, slug);
@@ -54,6 +56,7 @@ export class Workspace {
     mkdirSync(dir);
     execFileSync('git', ['init', '-q'], { cwd: dir });
     const title = name.trim();
+    const declared = normalizePlatforms(platforms);
     writeFileSync(
       join(dir, `${slug}.dsds.yaml`),
       [
@@ -65,6 +68,9 @@ export class Workspace {
         `    id: ${slug}`,
         `    name: ${JSON.stringify(title)}`,
         '    description: Describe what this design system is and who it is for.',
+        ...(declared.length > 0
+          ? ['    metadata:', `      platforms: [${declared.join(', ')}]`]
+          : []),
         '',
       ].join('\n'),
     );

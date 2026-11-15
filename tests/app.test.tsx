@@ -139,6 +139,29 @@ describe('app', () => {
     expect(base.getAttribute('title')).toBe('demo-system.dsds.yaml');
   });
 
+  it('offers to declare platforms when a project is created, and shows what will be saved', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(await screen.findByLabelText('Design system name'), 'Demo System');
+    await user.type(screen.getByLabelText('Platforms (optional)'), 'React Native, iOS');
+    expect(screen.getByText('Saved as: react-native, ios')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(
+      () => expect(screen.getAllByDisplayValue('Demo System').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+    const text = readFileSync(join(ws.root, 'demo-system', 'demo-system.dsds.yaml'), 'utf8');
+    expect(text).toMatch(/platforms:\s*\[?\s*react-native,\s*ios/);
+    expect(await screen.findByText(/0 errors/)).toBeTruthy();
+  });
+
+  it('creates a project with no platforms when the field is left empty', async () => {
+    const user = userEvent.setup();
+    await openNewProject(user);
+    const text = readFileSync(join(ws.root, 'demo-system', 'demo-system.dsds.yaml'), 'utf8');
+    expect(text).not.toContain('platforms');
+  });
+
   it('lists existing projects on the first screen', async () => {
     render(<App />);
     expect(await screen.findByText('No projects yet. Create one below.')).toBeTruthy();

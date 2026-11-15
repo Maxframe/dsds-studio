@@ -76,7 +76,8 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
       [Processing §4; CHANGELOG 0.21.1]
 - [x] Follow and show the successor of a deprecated entry or trait value, to the end of the chain, without
       choosing between several [Processing §5, §7]
-- [ ] Offer to declare `metadata.platforms` when creating a project [Conformance §9]
+- [x] Offer to declare `metadata.platforms` when creating a project (optional field on the create
+      form, saved as valid ids) [Conformance §9]
 - [ ] `dsds:` autocomplete: skip code spans and accept an uppercase scheme [Processing §2.4]
 - [ ] Smoke test: render the form for every pack example entry and fail on a crash or an empty value
       added by an Add button [Examples page]
