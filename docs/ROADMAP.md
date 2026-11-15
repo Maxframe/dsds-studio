@@ -78,7 +78,8 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
       choosing between several [Processing §5, §7]
 - [x] Offer to declare `metadata.platforms` when creating a project (optional field on the create
       form, saved as valid ids) [Conformance §9]
-- [ ] `dsds:` autocomplete: skip code spans and accept an uppercase scheme [Processing §2.4]
+- [x] `dsds:` autocomplete: skip code spans and fenced code, accept an uppercase scheme, in the form and
+      in the YAML view [Processing §2.4]
 - [ ] Smoke test: render the form for every pack example entry and fail on a crash or an empty value
       added by an Add button [Examples page]
 

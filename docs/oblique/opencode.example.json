@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "koby/<model-name>",
+  "provider": {
+    "koby": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "KOBY",
+      "options": { "baseURL": "<KOBY base URL>/v1" },
+      "models": { "<model-name>": { "name": "<display name>" } }
+    }
+  },
+  "mcp": {
+    "figma": {
+      "type": "remote",
+      "url": "https://mcp.figma.com/mcp",
+      "enabled": true
+    }
+  }
+}

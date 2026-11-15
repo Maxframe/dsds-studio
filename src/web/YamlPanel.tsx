@@ -21,7 +21,7 @@ import { syntaxHighlighting } from '@codemirror/language';
 import { yaml } from '@codemirror/lang-yaml';
 import { autocompletion, type CompletionContext } from '@codemirror/autocomplete';
 import { classHighlighter } from '@lezer/highlight';
-import { linkAt, suggestTargets } from '@shared/dsds-links';
+import { linkInYaml, suggestTargets } from '@shared/dsds-links';
 import type { RefTarget } from '@shared/types';
 import { stickyAncestors } from './stickyAncestors';
 import { locatePointer, pointerAtOffset } from '@shared/yaml-locate';
@@ -154,11 +154,12 @@ export function YamlPanel(props: {
           autocompletion({
             override: [
               (ctx: CompletionContext) => {
-                const line = ctx.state.doc.lineAt(ctx.pos);
-                const link = linkAt(line.text, ctx.pos - line.from);
+                // A link has no spaces in it, so its `dsds:` is on the caret's line.
+                if (!/dsds:/i.test(ctx.state.doc.lineAt(ctx.pos).text)) return null;
+                const link = linkInYaml(ctx.state.doc.toString(), ctx.pos);
                 if (!link) return null;
                 return {
-                  from: line.from + link.from,
+                  from: link.from,
                   filter: false,
                   options: suggestTargets(handlers.current.targets, link.query).map((t) => ({
                     label: t.target,

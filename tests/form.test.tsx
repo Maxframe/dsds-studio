@@ -926,6 +926,35 @@ describe('schema-driven form', () => {
       ]);
     });
 
+    it('offers targets for a link written with a capitalised scheme', async () => {
+      const { user } = setup({ ...component, description: '' }, { targets });
+      const box = screen.getByLabelText(/^description/, { selector: 'textarea' });
+      await user.click(box);
+      await user.type(box, 'Use <DSDS:li');
+      expect(screen.getByRole('listbox', { name: 'Link targets' })).toBeTruthy();
+    });
+
+    it('stays closed inside an inline code span, and opens again after it', async () => {
+      const { user } = setup({ ...component, description: '' }, { targets });
+      const box = screen.getByLabelText(/^description/, { selector: 'textarea' });
+      await user.click(box);
+      // A span with its closing backtick already there, and the caret inside it.
+      await user.type(box, 'Write ``{ArrowLeft}<dsds:li');
+      expect(screen.queryByRole('listbox')).toBeNull();
+      await user.keyboard('{End} then <dsds:li');
+      expect(screen.getByRole('listbox', { name: 'Link targets' })).toBeTruthy();
+    });
+
+    it('stays closed inside a fenced code block, and opens again after it', async () => {
+      const { user } = setup({ ...component, description: '' }, { targets });
+      const box = screen.getByLabelText(/^description/, { selector: 'textarea' });
+      await user.click(box);
+      await user.type(box, '```{Enter}<dsds:li');
+      expect(screen.queryByRole('listbox')).toBeNull();
+      await user.type(box, '{Enter}```{Enter}See <dsds:li');
+      expect(screen.getByRole('listbox', { name: 'Link targets' })).toBeTruthy();
+    });
+
     it('stays closed in ordinary text and closes on Escape', async () => {
       const { user } = setup({ ...component, description: '' }, { targets });
       const box = screen.getByLabelText(/^description/, { selector: 'textarea' });
