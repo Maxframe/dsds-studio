@@ -399,12 +399,12 @@ describe('app', () => {
     expect(readFileSync(base, 'utf8')).toContain('note: Stamped'); // untouched by the second save
   });
 
-  it('adds a numbered decision record from the New entry panel', async () => {
+  it('adds a numbered decision from the New entry panel', async () => {
     const user = userEvent.setup();
     await openNewProject(user);
     const addDecision = async (title: string) => {
       await user.click(await screen.findByRole('button', { name: 'New entry' }));
-      await user.click(screen.getByRole('radio', { name: 'Decision record' }));
+      await user.click(screen.getByRole('radio', { name: 'Decision' }));
       // No kind to pick for a decision: it is a tagged generic entry.
       expect(screen.queryByPlaceholderText('Select or type a kind')).toBeNull();
       await user.type(screen.getByLabelText('Decision title'), title);
@@ -452,6 +452,56 @@ describe('app', () => {
     await openNewProject(user);
     await user.hover(screen.getByRole('button', { name: 'Settings' }));
     expect((await screen.findByRole('tooltip')).textContent).toBe('Settings');
+  });
+
+  describe('new entries go where the style guide puts their kind', () => {
+    const idsInFile = () => {
+      const text = readFileSync(join(ws.root, 'demo-system', 'demo-system.dsds.yaml'), 'utf8');
+      return [...text.matchAll(/^\s+id: (\S+)/gm)].map((m) => m[1]);
+    };
+
+    it('inserts by kind: system, token, theme, component, entry', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      await addEntry(user, 'component', 'Button');
+      await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
+      await addEntry(user, 'theme', 'Dark');
+      await screen.findByRole('button', { name: 'More actions for Dark' }, { timeout: 5000 });
+      await addEntry(user, 'token', 'Red');
+      await screen.findByRole('button', { name: 'More actions for Red' }, { timeout: 5000 });
+      expect(idsInFile()).toEqual(['demo-system', 'red', 'dark', 'button']);
+      // The entry just added is the one that opens, wherever it landed.
+      expect(document.querySelector('.toolbar-heading')?.textContent).toBe('Red');
+    });
+
+    it('puts a copy next to the others of its kind, not at the very end', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      await addEntry(user, 'component', 'Button');
+      await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
+      await addEntry(user, 'entry', 'Notes');
+      await screen.findByRole('button', { name: 'More actions for Notes' }, { timeout: 5000 });
+      await menuAction(user, 'Button', 'Duplicate');
+      await screen.findByRole('button', { name: 'More actions for Button (copy)' });
+      expect(idsInFile()).toEqual(['demo-system', 'button', 'button-copy', 'notes']);
+    });
+
+    it('puts a decision with the generic entries, after components', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      await user.click(await screen.findByRole('button', { name: 'New entry' }));
+      await user.click(screen.getByRole('radio', { name: 'Decision' }));
+      await user.type(screen.getByLabelText('Decision title'), 'Pick a scale');
+      await user.click(screen.getByRole('button', { name: 'Create' }));
+      await screen.findByRole(
+        'button',
+        { name: 'More actions for Pick a scale' },
+        { timeout: 5000 },
+      );
+      await addEntry(user, 'component', 'Button');
+      await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
+      expect(idsInFile()).toEqual(['demo-system', 'button', 'adr-0001-pick-a-scale']);
+    });
   });
 
   it('collapses and restores the YAML panel from the toolbar, remembering the choice', async () => {
@@ -582,6 +632,24 @@ describe('app', () => {
     await screen.findByRole('button', { name: 'More actions for Demo System (copy)' });
     const text = readFileSync(base, 'utf8');
     expect(text.split(uuid)).toHaveLength(2); // the original keeps it, the copy has none
+  });
+
+  it('duplicates a standalone token whose id has slashes into one flat file', async () => {
+    const user = userEvent.setup();
+    const dir = join(ws.root, 'demo-system');
+    await openNewProject(user);
+    writeFileSync(
+      join(dir, 'token.dsds.yaml'),
+      'kind: token\nid: color/action/primary\nname: Primary\ndescription: x\ntokenType: color\n',
+    );
+    await user.click(screen.getByRole('button', { name: 'Back to projects' }));
+    await user.click(await screen.findByRole('button', { name: /demo-system/ }));
+    await menuAction(user, 'Primary', 'Duplicate');
+    await screen.findByRole('button', { name: 'More actions for Primary (copy)' });
+    const copy = join(dir, 'color-action-primary-copy.dsds.yaml');
+    expect(existsSync(copy)).toBe(true);
+    expect(readFileSync(copy, 'utf8')).toContain('id: color/action/primary-copy');
+    expect(existsSync(join(dir, 'color'))).toBe(false);
   });
 
   it('removing a standalone entry moves its file to the trash', async () => {

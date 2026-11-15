@@ -2,6 +2,8 @@ import { ArrowLeft, PanelRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
 import { fieldUsage } from '@shared/field-usage';
+import { fileNameForId } from '@shared/filename';
+import { insertOps, listRanker } from '@shared/order';
 import { getAtPointer } from '@shared/pointer';
 import type {
   EditOp,
@@ -377,7 +379,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
 
       if (e.origin === 'standalone') {
         const dir = e.file.includes('/') ? e.file.slice(0, e.file.lastIndexOf('/') + 1) : '';
-        const path = `${dir}${id}.dsds.yaml`;
+        const path = `${dir}${fileNameForId(id)}.dsds.yaml`;
         await api.saveText(slug, path, state.text);
         await api.applyOps(slug, path, [
           ...Object.entries(copy)
@@ -389,9 +391,15 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
         select({ type: 'entry', file: path, pointer: '', origin: 'standalone' });
       } else {
         const list = e.origin === 'shared' ? '/shared' : '/entries';
-        const count = (getAtPointer(state.value, list) as unknown[]).length;
-        await applyTo(e.file, [{ op: 'append', pointer: list, value: copy }]);
-        select({ type: 'entry', file: e.file, pointer: `${list}/${count}`, origin: e.origin });
+        const items = getAtPointer(state.value, list) as unknown[];
+        // The copy joins the other entries of its kind, as a new entry of that kind would.
+        const rank =
+          e.origin === 'shared' || !bundle || !nodes?.entryItems
+            ? null
+            : listRanker(bundle, 'entries', nodes.entryItems);
+        const { ops, index } = insertOps(list, items, copy, rank);
+        await applyTo(e.file, ops);
+        select({ type: 'entry', file: e.file, pointer: `${list}/${index}`, origin: e.origin });
       }
     } catch (err) {
       setNotice((err as Error).message);

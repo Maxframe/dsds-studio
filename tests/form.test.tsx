@@ -10,7 +10,7 @@ import { FormProvider, type FormContext } from '../src/web/form/context';
 import { SchemaField } from '../src/web/form/SchemaField';
 import './dom-polyfills';
 import { iconButtonsMissingHints, iconOnlyButtons } from './icon-buttons';
-import { optionsOf } from './select';
+import { choose, optionsOf } from './select';
 import { packDir } from './helpers';
 
 const bundle = new SchemaBundle(
@@ -163,6 +163,97 @@ describe('a pointing guideline item must contain a same-as or relates-to pointer
     expect(buttons()).not.toContain('+ Add relates-to link');
     // The general buttons stay: more pointers can always be added.
     expect(buttons()).toContain('+ Add pointer');
+  });
+});
+
+describe('new items go where the style guide puts them', () => {
+  const withSections = (sections: unknown[]) => ({ ...component, sections });
+  const ops = (apply: ReturnType<typeof setup>['apply']) => apply.mock.calls[0]?.[0] ?? [];
+
+  it('adds a section next to the others of its kind, general to specific', async () => {
+    const { apply, user } = setup(
+      withSections([
+        { kind: 'guidelines', for: 'all', items: [{ level: 'must', statement: 'A.' }] },
+        { kind: 'steps', for: 'all', items: [{ title: 'One' }] },
+      ]),
+    );
+    await choose(user, screen.getByRole('combobox', { name: 'Add sections' }), 'definitions');
+    // Guidelines, then definitions, then steps: appended, then moved into the middle.
+    expect(ops(apply)).toEqual([
+      expect.objectContaining({ op: 'append', pointer: '/entries/0/sections' }),
+      { op: 'move', pointer: '/entries/0/sections', from: 2, to: 1 },
+    ]);
+  });
+
+  it('puts a when-to-use guidelines section ahead of how-to-use ones', async () => {
+    const { apply, user } = setup(
+      withSections([
+        { kind: 'guidelines', for: 'all', items: [{ level: 'must', statement: 'A.' }] },
+      ]),
+    );
+    await choose(user, screen.getByRole('combobox', { name: 'Add sections' }), 'steps');
+    // Steps come after guidelines: a plain append.
+    expect(ops(apply)).toHaveLength(1);
+  });
+
+  it('adds a guideline item at the end: its level is not chosen yet', async () => {
+    const { apply, user } = setup(
+      withSections([
+        {
+          kind: 'guidelines',
+          for: 'all',
+          items: [
+            { level: 'must', statement: 'A.' },
+            { level: 'should', statement: 'B.' },
+          ],
+        },
+      ]),
+    );
+    await user.click(screen.getByRole('button', { name: '+ Add statement' }));
+    expect(ops(apply)).toHaveLength(1);
+  });
+});
+
+describe('ordering guideline items by level', () => {
+  const withItems = (items: unknown[]) => ({
+    ...component,
+    sections: [{ kind: 'guidelines', for: 'all', items }],
+  });
+  const sortButton = () => screen.queryByRole('button', { name: 'Sort by level' });
+
+  it('offers to sort items that are out of order, and sorts with moves', async () => {
+    const { apply, user } = setup(
+      withItems([
+        { level: 'should', statement: 'B.' },
+        { level: 'must', statement: 'A.' },
+        { level: 'may', statement: 'C.' },
+      ]),
+    );
+    await user.click(sortButton() as HTMLElement);
+    expect(apply.mock.calls[0]?.[0]).toEqual([
+      { op: 'move', pointer: '/entries/0/sections/0/items', from: 1, to: 0 },
+    ]);
+  });
+
+  it('says nothing when the items are in order', () => {
+    setup(
+      withItems([
+        { level: 'must', statement: 'A.' },
+        { level: 'should', statement: 'B.' },
+      ]),
+    );
+    expect(sortButton()).toBeNull();
+  });
+
+  it("does not guess for an item with no level of its own (it takes its target's)", () => {
+    setup(
+      withItems([
+        { level: 'should', statement: 'B.' },
+        { refs: [{ rel: 'same-as', to: 'shared-a11y#x' }] },
+        { level: 'must', statement: 'A.' },
+      ]),
+    );
+    expect(sortButton()).toBeNull();
   });
 });
 

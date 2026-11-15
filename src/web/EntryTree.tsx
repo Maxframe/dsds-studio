@@ -10,6 +10,7 @@ import {
 import { EntryMenu } from './EntryMenu';
 import { IconButton } from './IconButton';
 import { decisionTemplate, isoDate, nextDecisionId } from '@shared/decision';
+import { insertOps, listRanker } from '@shared/order';
 import { AddEntryPanel, NewEntryInput } from './NewEntry';
 import type { SchemaBundle, SchemaNode } from '@shared/schema';
 import { defaultValueFor, kindOptions } from '@shared/schema';
@@ -54,6 +55,9 @@ function groupEntries(entries: EntrySummary[]): Array<[string, EntrySummary[]]> 
   const rank = (k: string) => (k === 'system' ? 0 : k === 'shared' ? 2 : 1);
   return [...groups].sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0]));
 }
+
+/** The list index at the end of an entry's pointer (`/entries/3` is 3). */
+const indexOf = (pointer: string) => Number(pointer.slice(pointer.lastIndexOf('/') + 1));
 
 /** The "+" in a group title row, shown with the row's other actions on hover. */
 function AddButton(props: { label: string; open: boolean; onClick(): void }) {
@@ -128,15 +132,23 @@ export function EntryTree(props: {
     kindsInUse.set(e.kind, (kindsInUse.get(e.kind) ?? 0) + 1);
   }
 
-  /** Append `value` to the base document's `entries` or `shared` list, then open it. */
+  /**
+   * Add `value` to the base document's `entries` or `shared` list, then open it. An entry goes where
+   * the style guide puts its kind (after what it is built on); a shared entry goes last.
+   */
   const appendToBase = async (shared: boolean, value: object) => {
-    if (!baseFile) return;
+    if (!baseFile || !bundle) return;
     const list = shared ? '/shared' : '/entries';
     const origin = shared ? 'shared' : 'entries';
-    const index = overview.entries.filter((e) => e.file === baseFile && e.origin === origin).length;
+    const existing = overview.entries
+      .filter((e) => e.file === baseFile && e.origin === origin)
+      .sort((a, b) => indexOf(a.pointer) - indexOf(b.pointer))
+      .map((e) => ({ kind: e.kind ?? undefined }));
+    const rank = !shared && entryItems ? listRanker(bundle, 'entries', entryItems) : null;
+    const { ops, index } = insertOps(list, existing, value, rank);
     try {
       setError(null);
-      await props.apply(baseFile, [{ op: 'append', pointer: list, value }]);
+      await props.apply(baseFile, ops);
       setAdding(null);
       onSelect({ type: 'entry', file: baseFile, pointer: `${list}/${index}`, origin });
     } catch (e) {
@@ -164,7 +176,7 @@ export function EntryTree(props: {
     });
   };
 
-  /** Add a proposed decision record (a tagged generic entry), numbered after the existing ones. */
+  /** Add a proposed decision (a tagged generic entry), numbered after the existing ones. */
   const createDecision = async (title: string) => {
     const id = nextDecisionId(
       overview.entries.map((e) => e.id),

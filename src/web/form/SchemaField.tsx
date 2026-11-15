@@ -19,6 +19,7 @@ import {
   type VariantChoice,
   type SchemaNode,
 } from '@shared/schema';
+import { insertOps, listRanker, sortMoves } from '@shared/order';
 import { buildPointer } from '@shared/pointer';
 import { findingsAt, useForm } from './context';
 import { IconButton } from '../IconButton';
@@ -375,13 +376,27 @@ function ListField({
     );
   }
 
-  /** Put a ready item at the end of the list (making the list, if the field was empty). */
+  // Sections, and guideline items by level, have an order the style guide asks for.
+  const rank = label ? listRanker(ctx.bundle, label, itemNode) : null;
+  /**
+   * Put a ready item in the list (making the list, if the field was empty): at the end, or where the
+   * style guide puts it, when the list has an order.
+   */
   const put = (item: unknown) =>
-    void ctx.apply([
+    void ctx.apply(
       Array.isArray(value)
-        ? { op: 'append', pointer, value: item }
-        : { op: 'set', pointer, value: [item] },
-    ]);
+        ? insertOps(pointer, value, item, rank).ops
+        : [{ op: 'set', pointer, value: [item] }],
+    );
+  // Guideline items out of order can be sorted by level. Only when every item states a level: one
+  // that points elsewhere takes its target's, which is not known here.
+  const sorting =
+    label === 'items' &&
+    rank &&
+    items.length > 1 &&
+    items.every((i) => typeof (i as { level?: unknown })?.level === 'string')
+      ? sortMoves(items, rank)
+      : null;
   const add = (seed: unknown, node: SchemaNode) => put(defaultValueFor(ctx.bundle, node, seed));
   /**
    * The new item for a variant: its required fields, then whatever the item schema adds because of
@@ -421,6 +436,19 @@ function ListField({
           <SchemaField node={itemNode} value={item} pointer={`${pointer}/${i}`} hide={undefined} />
         </ListItem>
       ))}
+      {sorting ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          title="Order the items as the style guide asks: the strongest requirement first."
+          onClick={() =>
+            void ctx.apply(sorting.map((m) => ({ op: 'move' as const, pointer, ...m })))
+          }
+        >
+          Sort by level
+        </Button>
+      ) : null}
       {kinds.length > 0 ? (
         <Select value="" onValueChange={(k) => add({ kind: k }, itemNode)}>
           <SelectTrigger aria-label={`Add ${label ?? 'item'}`} className="w-auto">
