@@ -119,7 +119,7 @@ describe('files', () => {
   it('lists ref targets including item addresses', async () => {
     await createProject();
     const targets = await (await api.request('/api/projects/acme-design/targets')).json();
-    expect(targets).toContainEqual({ target: 'acme-design', label: 'Acme Design' });
+    expect(targets).toContainEqual({ target: 'acme-design', label: 'Acme Design', type: 'entry' });
   });
 });
 

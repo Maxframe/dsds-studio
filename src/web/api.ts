@@ -8,6 +8,7 @@ import type {
   ProjectOverview,
   VersionInfo,
   RefTarget,
+  ResolvedProject,
 } from '@shared/types';
 
 async function call<T>(url: string, init?: RequestInit): Promise<T> {
@@ -45,6 +46,7 @@ export const api = {
     call<DiffResult>(
       `/api/projects/${slug}/diff?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
     ),
+  resolved: (slug: string) => call<ResolvedProject>(`/api/projects/${slug}/resolved`),
   versions: (slug: string) => call<VersionInfo[]>(`/api/projects/${slug}/versions`),
   tagVersion: (slug: string, id: string, tag: string) =>
     call<VersionInfo[]>(`/api/projects/${slug}/versions/${id}/tag`, post({ tag })),

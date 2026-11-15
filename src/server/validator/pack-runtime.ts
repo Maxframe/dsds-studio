@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
+import type { Incoming, ResolvedEntry, ResolvedItem } from '@shared/types';
 import { PACKS_DIR } from '../packs';
 
 /** What a pack's reference validator reports (see packs/<v>/scripts/validate/validate.js). */
@@ -25,8 +26,9 @@ export interface ResolveResult {
   entries: Array<{
     id: string;
     kind: string | null;
-    items: unknown[];
-    incoming?: Array<{ rel: string; from: string; pointer: string; at?: string }>;
+    items: ResolvedItem[];
+    incoming?: Incoming[];
+    succession?: ResolvedEntry['succession'];
   }>;
   inlineLinks?: unknown[];
   problems: Array<{ code: string; at: string; message: string }>;
@@ -42,6 +44,10 @@ export interface PackRuntime {
   resolveProject(documents: unknown[]): ResolveResult;
   /** Upstream helper listing a document's entities (entries + shared, or the entry itself). */
   entriesIn(doc: unknown): unknown[];
+  /** Upstream's address book of an entry: each address with what it names and its section kind. */
+  itemAddresses(
+    entity: unknown,
+  ): Map<string, Array<{ type: string; pointer: string; sectionKind?: string }>>;
   /**
    * The pack's own `dsds-format`: puts fields in the order the schema files declare (style guide
    * §1-§6) by moving lines, so comments, quoting and unknown fields survive. Never throws.
@@ -78,6 +84,7 @@ export function loadPackRuntime(version: string, packsDir = PACKS_DIR): PackRunt
     validateDoc: validate.validateDoc,
     resolveProject: resolve.resolveProject,
     entriesIn: lib.entriesIn,
+    itemAddresses: lib.itemAddresses,
     formatText: format.formatText,
   };
   cache.set(key, runtime);

@@ -1,13 +1,14 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Hono } from 'hono';
-import type { EditOp, ValidationResult } from '@shared/types';
+import type { EditOp, RefTarget, ValidationResult } from '@shared/types';
 import { DsdsDocument } from './documents/document';
 import { applyOpsToFile, FileNotFound } from './documents/edit';
 import { listPacks, packForSchemaVersion, PACKS_DIR } from './packs';
 import { diffRevisions } from './projects/diff';
 import { stampChanged } from './projects/stamp';
 import { Project } from './projects/project';
+import { resolvedView } from './projects/resolved';
 import {
   discardDraft,
   draftOf,
@@ -101,16 +102,31 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     const project = Project.load({ dir });
     const match = project.pack();
     if (!match) return c.json([]);
-    const resolved = project.resolve(match.pack.version);
     const names = new Map(project.entries().map((e) => [e.id, e.name]));
-    const out: Array<{ target: string; label: string }> = [];
-    for (const e of resolved.entries) {
-      out.push({ target: e.id, label: names.get(e.id) ?? e.id });
-      for (const item of e.items as Array<{ address?: string }>) {
-        if (item.address) out.push({ target: `${e.id}#${item.address}`, label: item.address });
+    const out: RefTarget[] = [];
+    for (const [id, entry] of Object.entries(resolvedView(project, match.pack.version).entries)) {
+      out.push({ target: id, label: names.get(id) ?? id, type: 'entry' });
+      for (const item of entry.items) {
+        if (!item.address) continue;
+        out.push({
+          target: `${id}#${item.address}`,
+          label: item.address,
+          type: item.type,
+          ...(item.sectionKind ? { sectionKind: item.sectionKind } : {}),
+        });
       }
     }
     return c.json(out);
+  });
+
+  // What the resolver works out beyond what is written: effective content of reusing items, what
+  // points at each entry, successors.
+  app.get('/api/projects/:slug/resolved', (c) => {
+    const dir = workspace.dirOf(c.req.param('slug'));
+    if (!dir) return fail('Project not found', 404);
+    const project = Project.load({ dir });
+    const match = project.pack();
+    return c.json(match ? resolvedView(project, match.pack.version) : { entries: {} });
   });
 
   app.get('/api/projects/:slug/file', (c) => {

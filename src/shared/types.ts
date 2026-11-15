@@ -156,4 +156,45 @@ export interface FileState {
 export interface RefTarget {
   target: string;
   label: string;
+  /** `entry` for a whole entry; for an address inside one, what it is (`item`, `trait`, ...). */
+  type?: string;
+  /** For an `item`: the kind of section it sits in (`guidelines`, `definitions`, `steps`, ...). */
+  sectionKind?: string;
+}
+
+/** One thing in an entry that can be pointed at, as the pack's resolver sees it. */
+export interface ResolvedItem {
+  address: string;
+  type: string;
+  /** Where it is, inside its entry (`/sections/0/items/1`). */
+  pointer: string;
+  sectionKind?: string;
+  /** For an item that reuses another through `same-as`: what it reuses, and the item that states it. */
+  reuses?: string;
+  origin?: string;
+  /** The item's effective content: its own fields, plus the rest from what it reuses (§4). */
+  content?: Record<string, unknown>;
+}
+
+/** A pointer at an entry, seen from the entry it points at (§5). */
+export interface Incoming {
+  rel: string;
+  /** The entry, or `entry#address` for an item inside it, that holds the pointer. */
+  from: string;
+  /** Exactly where: the entry id, then the pointer inside it (`dialog/uses/0`). */
+  pointer: string;
+  /** The address inside this entry the pointer names, when it names one. */
+  at?: string;
+}
+
+export interface ResolvedEntry {
+  kind: string | null;
+  items: ResolvedItem[];
+  incoming?: Incoming[];
+  succession?: { replacedBy: string[]; successors: string[]; choose: boolean };
+}
+
+/** What the pack's resolver works out for a whole project, by entry id. */
+export interface ResolvedProject {
+  entries: Record<string, ResolvedEntry>;
 }
