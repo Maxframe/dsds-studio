@@ -40,6 +40,7 @@ function setup(value: unknown, extra: Partial<FormContext> = {}) {
     valueAt: (pointer) => getAtPointer({ entries: [value] }, pointer),
     reused: () => undefined,
     requestIdChange: (_from, _to, done) => done.commit(),
+    succession: () => undefined,
     focus: null,
     ...extra,
   };
@@ -820,6 +821,41 @@ describe('schema-driven form', () => {
       await user.tab();
       expect(requestIdChange).not.toHaveBeenCalled();
       expect(apply).toHaveBeenCalled();
+    });
+  });
+
+  describe('a deprecated trait value shows what replaces it (Processing §7)', () => {
+    const withTrait = {
+      ...component,
+      traits: [
+        { id: 'size', traitType: 'variant', kind: 'enum', values: [{ id: 'big', name: 'Big' }] },
+      ],
+    };
+    const succession = (pointer: string) =>
+      pointer === '/entries/0/traits/0'
+        ? { replacedBy: ['button#size.large'], successors: ['button#size.large'], choose: false }
+        : undefined;
+    const head = () =>
+      [...document.querySelectorAll<HTMLElement>('.list-item-head .link-button')].find((h) =>
+        h.textContent?.includes('size'),
+      );
+
+    it('flags the item and says what replaces it', () => {
+      setup(withTrait, { succession });
+      expect(head()?.textContent).toContain('replaced');
+      expect(screen.getByText(/Replaced by button#size\.large/)).toBeTruthy();
+    });
+
+    it('says so when there are several successors, and does not pick one', () => {
+      setup(withTrait, {
+        succession: () => ({ replacedBy: ['a', 'b'], successors: ['a', 'b'], choose: true }),
+      });
+      expect(screen.getAllByText(/more than one successor/i).length).toBeGreaterThan(0);
+    });
+
+    it('shows nothing for an item that is not replaced', () => {
+      setup(withTrait, { succession: () => undefined });
+      expect(screen.queryByText(/Replaced by/)).toBeNull();
     });
   });
 

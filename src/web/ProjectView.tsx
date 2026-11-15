@@ -15,6 +15,7 @@ import type {
   ProjectOverview,
   RefTarget,
   ResolvedProject,
+  Succession,
   VersionInfo,
 } from '@shared/types';
 import { api } from './api';
@@ -22,6 +23,7 @@ import { cn } from '@web/lib/utils';
 import { Button } from '@web/components/ui/button';
 import { SettingsMenu } from './SettingsMenu';
 import { IdChangeDialog, type IdChange } from './IdChangeDialog';
+import { Successors } from './Successors';
 import { UsedBy } from './UsedBy';
 import { useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
@@ -252,6 +254,24 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     },
     [selection, overview, resolved],
   );
+  // The resolver's view of any addressable thing in the open entry, by its pointer in the document.
+  const resolvedItemAt = useCallback(
+    (pointer: string) => {
+      const entry =
+        selection?.type === 'entry'
+          ? overview?.entries.find(
+              (e) => e.file === selection.file && e.pointer === selection.pointer,
+            )
+          : undefined;
+      if (!entry || !resolved || (entry.pointer && !pointer.startsWith(`${entry.pointer}/`))) {
+        return undefined;
+      }
+      return resolved.entries[entry.id]?.items.find(
+        (i) => i.pointer === pointer.slice(entry.pointer.length),
+      );
+    },
+    [selection, overview, resolved],
+  );
 
   /**
    * An entry's id is about to change. If nothing points at it, go ahead. Otherwise ask: what
@@ -308,6 +328,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             namespace,
             valueAt: (pointer) => getAtPointer(open.state.value, pointer),
             reused: (pointer) => reusedAt(pointer),
+            succession: (pointer) => resolvedItemAt(pointer)?.succession,
             requestIdChange,
             focus: formFocus,
           }
@@ -322,6 +343,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       formFocus,
       namespace,
       reusedAt,
+      resolvedItemAt,
       requestIdChange,
     ],
   );
@@ -346,6 +368,17 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       overview?.entries.find((e) => e.file === selFile && e.pointer === ''),
     [overview, selFile],
   );
+
+  /** Open an entry, or an address inside it (`entry#address`): a replacement named by a successor. */
+  const openTarget = (target: string) => {
+    const [id = '', address] = target.split('#');
+    const entry = overview?.entries.find((e) => e.id === id);
+    if (!entry) return;
+    const item = address
+      ? resolved?.entries[id]?.items.find((i) => i.address === address)
+      : undefined;
+    goToPointer(entry, item?.pointer ?? '');
+  };
 
   /** Open the entry that holds a pointer, at that pointer: the "Used by" rows. */
   const goToPointer = (entry: EntrySummary, relative: string) => {
@@ -586,6 +619,13 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
     );
     editor = (
       <FormProvider value={ctx}>
+        {summary && resolved?.entries[summary.id]?.succession ? (
+          <Successors
+            succession={resolved.entries[summary.id]?.succession as Succession}
+            entries={overview.entries}
+            onOpen={openTarget}
+          />
+        ) : null}
         {notice ? <p className="field-note field-note--error">{notice}</p> : null}
         {node ? (
           <div

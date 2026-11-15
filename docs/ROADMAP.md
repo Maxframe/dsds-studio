@@ -74,7 +74,8 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
 - [x] "Used by" panel on each entry from the resolver's `incoming` pointers [Processing §5; Conformance §2]
 - [x] Show a reusing item's effective content (level, statement) from its `same-as` target
       [Processing §4; CHANGELOG 0.21.1]
-- [ ] Follow and show the successor of a deprecated entry [Processing §5, §7]
+- [x] Follow and show the successor of a deprecated entry or trait value, to the end of the chain, without
+      choosing between several [Processing §5, §7]
 - [ ] Offer to declare `metadata.platforms` when creating a project [Conformance §9]
 - [ ] `dsds:` autocomplete: skip code spans and accept an uppercase scheme [Processing §2.4]
 - [ ] Smoke test: render the form for every pack example entry and fail on a crash or an empty value

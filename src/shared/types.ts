@@ -162,6 +162,17 @@ export interface RefTarget {
   sectionKind?: string;
 }
 
+/**
+ * Where a deprecated thing went (Processing §7): the entries it names as replacements, and where
+ * following them on through replacements that are themselves deprecated ends. Several successors are
+ * not chosen between: the deprecation notice says which to use when.
+ */
+export interface Succession {
+  replacedBy: string[];
+  successors: string[];
+  choose: boolean;
+}
+
 /** One thing in an entry that can be pointed at, as the pack's resolver sees it. */
 export interface ResolvedItem {
   address: string;
@@ -174,6 +185,8 @@ export interface ResolvedItem {
   origin?: string;
   /** The item's effective content: its own fields, plus the rest from what it reuses (§4). */
   content?: Record<string, unknown>;
+  /** For a deprecated trait or trait value: what replaces it. */
+  succession?: Succession;
 }
 
 /** A pointer at an entry, seen from the entry it points at (§5). */
@@ -191,7 +204,7 @@ export interface ResolvedEntry {
   kind: string | null;
   items: ResolvedItem[];
   incoming?: Incoming[];
-  succession?: { replacedBy: string[]; successors: string[]; choose: boolean };
+  succession?: Succession;
 }
 
 /** What the pack's resolver works out for a whole project, by entry id. */

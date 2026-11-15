@@ -131,3 +131,50 @@ describe('GET /targets', () => {
     expect(all.find((t) => t.target === 'dialog')?.sectionKind).toBeUndefined();
   });
 });
+
+describe('GET /resolved: successors of a deprecated entry (§7)', () => {
+  const deprecated = (id: string, replacedBy: string[]) => `  - kind: entry
+    id: ${id}
+    name: ${id}
+    description: x
+    metadata:
+      status:
+        status: deprecated
+        deprecationNotice: Use ${replacedBy.join(' or ')}.
+        replacedBy:
+${replacedBy.map((to) => `          - to: ${to}`).join('\n')}
+`;
+  const live = (id: string) =>
+    `  - kind: entry\n    id: ${id}\n    name: ${id}\n    description: x\n`;
+  const project = (...entries: string[]) =>
+    `schemaVersion: "0.23.1"\nname: Demo\nentries:\n${entries.join('')}`;
+
+  it('follows replaced-by through successors that are themselves deprecated', async () => {
+    writeFileSync(
+      join(ws.root, 'demo', 'demo.dsds.yaml'),
+      project(deprecated('old', ['mid']), deprecated('mid', ['new']), live('new')),
+    );
+    const { entries } = await resolved();
+    expect(entries.old?.succession).toEqual({
+      replacedBy: ['mid'],
+      successors: ['new'],
+      choose: false,
+    });
+    expect(entries.mid?.succession).toEqual({
+      replacedBy: ['new'],
+      successors: ['new'],
+      choose: false,
+    });
+    expect(entries.new?.succession).toBeUndefined();
+  });
+
+  it('does not choose between several successors', async () => {
+    writeFileSync(
+      join(ws.root, 'demo', 'demo.dsds.yaml'),
+      project(deprecated('old', ['a', 'b']), live('a'), live('b')),
+    );
+    const succession = (await resolved()).entries.old?.succession;
+    expect(succession?.choose).toBe(true);
+    expect(succession?.successors).toEqual(['a', 'b']);
+  });
+});

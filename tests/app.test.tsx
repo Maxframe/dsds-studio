@@ -589,6 +589,106 @@ describe('app', () => {
     });
   });
 
+  const SUCCESSION_BASE = `schemaVersion: "0.23.1"
+name: Demo System
+entries:
+  - kind: system
+    id: demo-system
+    name: Demo System
+    description: A system.
+  - kind: component
+    id: old-button
+    name: Old button
+    description: The first button.
+    metadata:
+      status:
+        status: deprecated
+        deprecationNotice: Use the mid button.
+        replacedBy:
+          - to: mid-button
+  - kind: component
+    id: mid-button
+    name: Mid button
+    description: The second button.
+    metadata:
+      status:
+        status: deprecated
+        deprecationNotice: Use the new button.
+        replacedBy:
+          - to: new-button
+  - kind: component
+    id: new-button
+    name: New button
+    description: The current button.
+  - kind: component
+    id: old-link
+    name: Old link
+    description: A link.
+    metadata:
+      status:
+        status: deprecated
+        deprecationNotice: Use either, depending on context.
+        replacedBy:
+          - to: new-button
+          - to: new-link
+  - kind: component
+    id: new-link
+    name: New link
+    description: The current link.
+`;
+
+  describe('Replaced by: where a deprecated entry went (Processing §7)', () => {
+    const open = async (user: ReturnType<typeof userEvent.setup>) => {
+      await openNewProject(user);
+      writeFileSync(join(ws.root, 'demo-system', 'demo-system.dsds.yaml'), SUCCESSION_BASE);
+      await user.click(screen.getByRole('button', { name: 'Back to projects' }));
+      await user.click(await screen.findByRole('button', { name: /demo-system/ }));
+    };
+    const panel = () => screen.findByRole('region', { name: 'Replaced by' }, { timeout: 5000 });
+
+    it('names the replacement, and follows on when it is deprecated too', async () => {
+      const user = userEvent.setup();
+      await open(user);
+      await user.click(await screen.findByRole('button', { name: 'Old button' }));
+      const region = await panel();
+      expect(within(region).getByRole('button', { name: 'Mid button' })).toBeTruthy();
+      // Mid button is itself replaced: the end of the chain is shown, too.
+      expect(within(region).getByText(/replaced as well/i)).toBeTruthy();
+      expect(within(region).getByRole('button', { name: 'New button' })).toBeTruthy();
+    });
+
+    it('opens the replacement when it is clicked', async () => {
+      const user = userEvent.setup();
+      await open(user);
+      await user.click(await screen.findByRole('button', { name: 'Old button' }));
+      await user.click(within(await panel()).getByRole('button', { name: 'New button' }));
+      await waitFor(() =>
+        expect(document.querySelector('.toolbar-heading')?.textContent).toBe('New button'),
+      );
+    });
+
+    it('does not choose between several replacements', async () => {
+      const user = userEvent.setup();
+      await open(user);
+      await user.click(await screen.findByRole('button', { name: 'Old link' }));
+      const region = await panel();
+      expect(within(region).getByRole('button', { name: 'New button' })).toBeTruthy();
+      expect(within(region).getByRole('button', { name: 'New link' })).toBeTruthy();
+      expect(within(region).getByText(/more than one successor/i)).toBeTruthy();
+      expect(within(region).getByText(/deprecation notice/i)).toBeTruthy();
+    });
+
+    it('shows nothing for an entry that is not replaced', async () => {
+      const user = userEvent.setup();
+      await open(user);
+      await user.click(await screen.findByRole('button', { name: 'New button' }));
+      await waitFor(() =>
+        expect(document.querySelector('.toolbar-heading')?.textContent).toBe('New button'),
+      );
+      expect(screen.queryByRole('region', { name: 'Replaced by' })).toBeNull();
+    });
+  });
+
   describe('Used by: what points at an entry (Processing §5)', () => {
     const panel = () => screen.queryByRole('region', { name: 'Used by' });
 

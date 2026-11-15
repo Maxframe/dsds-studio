@@ -21,7 +21,7 @@ import {
 } from '@shared/schema';
 import { insertOps, listRanker, sortMoves } from '@shared/order';
 import { buildPointer } from '@shared/pointer';
-import type { ResolvedItem } from '@shared/types';
+import type { ResolvedItem, Succession } from '@shared/types';
 import { findingsAt, useForm } from './context';
 import { IconButton } from '../IconButton';
 import { RemoveField } from './RemoveField';
@@ -452,6 +452,7 @@ function ListField({
           count={items.length}
           {...itemParts(item, i, reusing(i)?.content)}
           reused={reusing(i)}
+          succession={ctx.succession(`${pointer}/${i}`)}
           startOpen={items.length <= 3}
         >
           <SchemaField node={itemNode} value={item} pointer={`${pointer}/${i}`} hide={undefined} />
@@ -516,6 +517,18 @@ function ListField({
   );
 }
 
+/** What replaces a deprecated trait or value (§7). With several, none is chosen here. */
+function ReplacedNote({ succession }: { succession: Succession }) {
+  return (
+    <p className="field-note">
+      Replaced by {succession.replacedBy.join(', ')}.
+      {succession.choose
+        ? ' There is more than one successor: the deprecation notice says which to use when.'
+        : ''}
+    </p>
+  );
+}
+
 /** What a reader sees for an item that reuses another: the content it takes from what it reuses. */
 function ReusedContent({ item }: { item: ResolvedItem }) {
   const fields = Object.entries(item.content ?? {}).filter(([, v]) => typeof v === 'string');
@@ -545,6 +558,8 @@ function ListItem(props: {
   count: number;
   /** The resolver's view of an item that reuses another (§4): its effective content and source. */
   reused?: ResolvedItem;
+  /** What replaces a deprecated trait or trait value (§7). */
+  succession?: Succession;
   /** A requirement level shown in front of the text, like `SHOULD`. */
   prefix: string;
   text: string;
@@ -576,6 +591,17 @@ function ListItem(props: {
               {' '}
               <span className="badge" title={`Reuses ${props.reused.reuses}`}>
                 reused
+              </span>
+            </>
+          ) : null}
+          {props.succession ? (
+            <>
+              {' '}
+              <span
+                className="badge"
+                title={`Replaced by ${props.succession.replacedBy.join(', ')}`}
+              >
+                replaced
               </span>
             </>
           ) : null}
@@ -611,6 +637,7 @@ function ListItem(props: {
       </div>
       {open ? (
         <div className="list-item-body">
+          {props.succession ? <ReplacedNote succession={props.succession} /> : null}
           {props.reused ? <ReusedContent item={props.reused} /> : null}
           {props.children}
         </div>

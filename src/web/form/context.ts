@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { SchemaBundle } from '@shared/schema';
-import type { EditOp, Finding, RefTarget, ResolvedItem } from '@shared/types';
+import type { EditOp, Finding, RefTarget, ResolvedItem, Succession } from '@shared/types';
 
 export interface FormContext {
   bundle: SchemaBundle;
@@ -16,6 +16,8 @@ export interface FormContext {
   valueAt(pointer: string): unknown;
   /** What the resolver works out for the item at `pointer` when it reuses another (§4), else nothing. */
   reused(pointer: string): ResolvedItem | undefined;
+  /** What replaces the deprecated trait or trait value at `pointer` (§7), else nothing. */
+  succession(pointer: string): Succession | undefined;
   /**
    * An entry's id is about to change. Published ids should not change (Specification §3.1), and
    * what points at it breaks, so the project may ask first: it then calls `commit` or `cancel`.
