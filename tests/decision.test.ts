@@ -5,7 +5,7 @@ import { latest } from './helpers';
 
 const version = latest?.version ?? '';
 
-describe("decision record template against the pack's own validator", () => {
+describe("decision template against the pack's own validator", () => {
   const doc = (entry: unknown) =>
     [
       `schemaVersion: "${version}"`,

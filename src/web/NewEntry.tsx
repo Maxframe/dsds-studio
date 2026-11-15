@@ -42,7 +42,7 @@ export function AddEntryPanel(props: {
   standard: string[];
   inUse: Map<string, number>;
   onCreate(kind: string, name: string): void;
-  /** A decision record (ADR): a tagged generic entry with its sections ready. */
+  /** A decision (an ADR): a tagged generic entry with its sections ready. */
   onCreateDecision(title: string): void;
   onCancel(): void;
   error: string | null;
@@ -78,7 +78,7 @@ export function AddEntryPanel(props: {
         onValueChange={(v) => v && setMode(v as 'entry' | 'decision')}
       >
         <ToggleGroupItem value="entry">Entry</ToggleGroupItem>
-        <ToggleGroupItem value="decision">Decision record</ToggleGroupItem>
+        <ToggleGroupItem value="decision">Decision</ToggleGroupItem>
       </ToggleGroup>
       {decision ? null : (
         <ComboboxField

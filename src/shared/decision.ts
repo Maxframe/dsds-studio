@@ -1,5 +1,5 @@
 /**
- * Decision records (ADRs) as DSDS content, an authoring convention and not a schema feature
+ * Decisions (ADRs) as DSDS content, an authoring convention and not a schema feature
  * (ADR 0005, roadmap M3.5): a generic `kind: entry` tagged `decision`, so it keeps full validation
  * (a custom kind would be unchecked). Status lives in `metadata.status`; a superseded record is
  * `deprecated` with `replacedBy`, which is how the spec says "this was replaced by that".
