@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
-import { ToggleGroup, ToggleGroupItem } from '@web/components/ui/toggle-group';
 import { kindLabels, normalizeCustom } from '@shared/namespaced';
 import { ComboboxField, type ComboOption } from './form/ComboboxField';
 
@@ -46,12 +45,9 @@ export function AddEntryPanel(props: {
   namespace: string;
   pattern?: string;
   onCreate(kind: string, name: string): void;
-  /** A decision (an ADR): a tagged generic entry with its sections ready. */
-  onCreateDecision(title: string): void;
   onCancel(): void;
   error: string | null;
 }) {
-  const [mode, setMode] = useState<'entry' | 'decision'>('entry');
   const [kind, setKind] = useState('');
   const [name, setName] = useState('');
   const used = (v: string): ComboOption => {
@@ -59,52 +55,36 @@ export function AddEntryPanel(props: {
     return { value: v, hint: n > 0 ? `${n} in use` : undefined };
   };
   const custom = [...props.inUse.keys()].filter((v) => !props.standard.includes(v)).sort();
-  const decision = mode === 'decision';
   // People type a plain name and see plain names; the namespace the schema needs is added for them.
   const labels = kindLabels([...props.standard, ...custom]);
-  const ready = (decision || kind !== '') && name.trim() !== '';
+  const ready = kind !== '' && name.trim() !== '';
   return (
     <form
       className="new-entry grid gap-2"
       aria-label="Add entry"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!ready) return;
-        if (decision) props.onCreateDecision(name.trim());
-        else props.onCreate(kind, name.trim());
+        if (ready) props.onCreate(kind, name.trim());
       }}
       onKeyDown={(e) => e.key === 'Escape' && props.onCancel()}
     >
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        size="sm"
-        aria-label="What to add"
-        value={mode}
-        onValueChange={(v) => v && setMode(v as 'entry' | 'decision')}
-      >
-        <ToggleGroupItem value="entry">Entry</ToggleGroupItem>
-        <ToggleGroupItem value="decision">Decision</ToggleGroupItem>
-      </ToggleGroup>
-      {decision ? null : (
-        <ComboboxField
-          pointer="new-entry-kind"
-          value={kind}
-          required
-          onCommit={(v) => setKind(typeof v === 'string' ? v : '')}
-          placeholder="Select or type a kind"
-          display={(v) => labels.get(v) ?? v}
-          normalize={(typed) => normalizeCustom(typed, props.namespace, props.pattern)}
-          groups={[
-            { heading: 'Standard', options: props.standard.map(used) },
-            { heading: 'Custom, in use', options: custom.map(used) },
-          ]}
-        />
-      )}
+      <ComboboxField
+        pointer="new-entry-kind"
+        value={kind}
+        required
+        onCommit={(v) => setKind(typeof v === 'string' ? v : '')}
+        placeholder="Select or type a kind"
+        display={(v) => labels.get(v) ?? v}
+        normalize={(typed) => normalizeCustom(typed, props.namespace, props.pattern)}
+        groups={[
+          { heading: 'Standard', options: props.standard.map(used) },
+          { heading: 'Custom, in use', options: custom.map(used) },
+        ]}
+      />
       <Input
         value={name}
-        placeholder={decision ? 'What was decided' : 'Name'}
-        aria-label={decision ? 'Decision title' : 'Entry name'}
+        placeholder="Name"
+        aria-label="Entry name"
         onChange={(e) => setName(e.target.value)}
       />
       <div className="flex gap-2">

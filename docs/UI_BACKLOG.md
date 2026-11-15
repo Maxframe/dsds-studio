@@ -26,9 +26,9 @@ Seen in the browser while testing (not yet decided, say which you want):
 
 ## Done
 
-- Add entry: the form at the bottom of the tree is gone. Each group title has a "+" that opens a
-  name field (the kind is implied, Enter creates, Escape cancels); a "+" next to Files opens a panel
-  with the kind combobox for kinds with no group yet. The duplicate "entry (generic)" choice is gone.
+- Add entry: each group title has a "+" that opens a name field (the kind is implied, Enter creates,
+  Escape cancels); a "+" next to Files opens a panel with the kind combobox for kinds with no group
+  yet.
 
 - Layout pass: each pane has its own toolbar (back, truncating title, settings; entry title and
   remove; empty), draggable dividers are transparent touch targets, the tree rows are ghost buttons

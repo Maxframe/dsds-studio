@@ -52,28 +52,6 @@ commits them with the local git CLI.
 - [x] Stamp `metadata.updated` (today, label as note) on changed entries when saving a named version
       (checkbox in the Save version popover, on by default; never for quicksaves)
 
-## M3.5: Decisions
-
-Authoring convention on top of DSDS, no schema change: a decision is a generic `kind: entry` tagged
-`decision`, so it keeps full validation (a custom kind would be unchecked). Sections: Context,
-Decision, Consequences, Alternatives considered. Status lives in `metadata.status`: proposed,
-accepted, deprecated; superseded = `deprecated` + `replacedBy`. Depends on M3 (history, "left as
-written").
-
-- [x] "Add decision" template: numbered id (`adr-0012-slug`), the four sections (one headed section),
-      status `proposed`, tagged `decision`, dated; offered on request in the New entry panel.
-      Optional `metadata.preview` is added from the form like any field
-      Paused until the template has been used on a real project: write two or three real decisions with it
-      first, then see which of these are worth building. A decision is most useful written while deciding,
-      not afterwards (retrospective records tend to rationalize). Everyday "why" already has homes: version
-      labels, `metadata.updated.note`, `deprecationNotice`.
-
-- [ ] (paused) Status shown as proposed / accepted / deprecated / superseded, with a Supersede action that
-      creates the linked new record and marks the old one (`deprecated` + `replacedBy` + `deprecationNotice`)
-- [ ] (paused) Decisions view in the sidebar, newest first, filter by status
-- [ ] (paused) Confirm before editing an accepted record, pointing at Supersede
-- [ ] (paused) "Decisions affecting this entry": covered by "Used by" below
-
 ## Spec conformance pass
 
 From reading every spec page (Processing, Conformance, Stability, Interoperability, Security,
@@ -87,8 +65,6 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
       schema's enums, as the pack's lint does. Guideline items cannot be placed when added (their
       level is chosen afterwards), so a "Sort by level" button appears when they are out of order
       [Style guide §1, §4, §5; DSDS-18, 19, 21]
-- [x] Rename the "Decision record" option to "Decision" ("record" is a word the vocabulary avoids for an
-      entry) [Conformance §3; AGENTS.md Terminology]
 - [x] Custom kinds take a plain name: the namespace the schema requires (`acme.widget`) is added from
       the project already uses (else the system entry's id) and hidden everywhere (sidebar, kind field, diff). Reported by use
       [Style/schema: `common/id` namespaced pattern]

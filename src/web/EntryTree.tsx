@@ -9,7 +9,6 @@ import {
 } from '@web/components/ui/collapsible';
 import { EntryMenu } from './EntryMenu';
 import { IconButton } from './IconButton';
-import { decisionTemplate, isoDate, nextDecisionId } from '@shared/decision';
 import { kindLabels } from '@shared/namespaced';
 import { insertOps, listRanker } from '@shared/order';
 import { AddEntryPanel, NewEntryInput } from './NewEntry';
@@ -184,14 +183,6 @@ export function EntryTree(props: {
     });
   };
 
-  /** Add a proposed decision (a tagged generic entry), numbered after the existing ones. */
-  const createDecision = async (title: string) => {
-    const id = nextDecisionId(
-      overview.entries.map((e) => e.id),
-      title,
-    );
-    await appendToBase(false, decisionTemplate(id, title, isoDate()));
-  };
   const startAdding = (what: string | 'panel') => {
     setError(null);
     setAdding(adding === what ? null : what);
@@ -226,7 +217,6 @@ export function EntryTree(props: {
             pattern={kindPattern}
             inUse={kindsInUse}
             onCreate={(kind, name) => void create(kind, name)}
-            onCreateDecision={(title) => void createDecision(title)}
             onCancel={() => setAdding(null)}
             error={error}
           />

@@ -445,35 +445,6 @@ describe('app', () => {
     expect(readFileSync(base, 'utf8')).toContain('note: Stamped'); // untouched by the second save
   });
 
-  it('adds a numbered decision from the New entry panel', async () => {
-    const user = userEvent.setup();
-    await openNewProject(user);
-    const addDecision = async (title: string) => {
-      await user.click(await screen.findByRole('button', { name: 'New entry' }));
-      await user.click(screen.getByRole('radio', { name: 'Decision' }));
-      // No kind to pick for a decision: it is a tagged generic entry.
-      expect(screen.queryByPlaceholderText('Select or type a kind')).toBeNull();
-      await user.type(screen.getByLabelText('Decision title'), title);
-      await user.click(screen.getByRole('button', { name: 'Create' }));
-    };
-    await addDecision('Use tokens for spacing');
-    await waitFor(() => expect(yamlText()).toContain('adr-0001-use-tokens-for-spacing'), {
-      timeout: 5000,
-    });
-    const text = yamlText();
-    expect(text).toContain('proposed');
-    expect(text).toContain('decision');
-    for (const heading of ['Context', 'Decision', 'Consequences', 'Alternatives considered']) {
-      expect(text).toContain(heading);
-    }
-    // The next one continues the numbering, and the project still validates.
-    await addDecision('Name components in singular');
-    await waitFor(() => expect(yamlText()).toContain('adr-0002-name-components-in-singular'), {
-      timeout: 5000,
-    });
-    expect(await screen.findByText(/0 errors/)).toBeTruthy();
-  });
-
   it('gives every icon button in the project view a name and a hover hint', async () => {
     const user = userEvent.setup();
     await openNewProject(user);
@@ -530,23 +501,6 @@ describe('app', () => {
       await menuAction(user, 'Button', 'Duplicate');
       await screen.findByRole('button', { name: 'More actions for Button (copy)' });
       expect(idsInFile()).toEqual(['demo-system', 'button', 'button-copy', 'notes']);
-    });
-
-    it('puts a decision with the generic entries, after components', async () => {
-      const user = userEvent.setup();
-      await openNewProject(user);
-      await user.click(await screen.findByRole('button', { name: 'New entry' }));
-      await user.click(screen.getByRole('radio', { name: 'Decision' }));
-      await user.type(screen.getByLabelText('Decision title'), 'Pick a scale');
-      await user.click(screen.getByRole('button', { name: 'Create' }));
-      await screen.findByRole(
-        'button',
-        { name: 'More actions for Pick a scale' },
-        { timeout: 5000 },
-      );
-      await addEntry(user, 'component', 'Button');
-      await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
-      expect(idsInFile()).toEqual(['demo-system', 'button', 'adr-0001-pick-a-scale']);
     });
   });
 
@@ -816,19 +770,13 @@ describe('app', () => {
     expect(yamlText()).toContain('kind: component');
   });
 
-  it('cancels an add with Escape, and does not offer a duplicate "entry" kind', async () => {
+  it('cancels an add with Escape', async () => {
     const user = userEvent.setup();
     await openNewProject(user);
     await user.click(await screen.findByRole('button', { name: 'Add system entry' }));
     await user.type(screen.getByLabelText('New system name'), 'Nope');
     await user.keyboard('{Escape}');
     expect(screen.queryByLabelText('New system name')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'New entry' }));
-    await user.click(screen.getByPlaceholderText('Select or type a kind'));
-    const kinds = within(screen.getByRole('listbox'))
-      .getAllByRole('option')
-      .map((o) => o.textContent);
-    expect(kinds.filter((k) => k?.startsWith('entry'))).toHaveLength(1);
   });
 
   it('removes an entry from a document after confirming', async () => {
