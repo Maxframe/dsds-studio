@@ -123,7 +123,13 @@ export function SchemaField({
       const standard = eff.suggestions?.filter((s): s is string => typeof s === 'string') ?? [];
       const placeholder = typeof eff.example === 'string' ? eff.example : undefined;
       body = standard.length ? (
-        <OpenSetWidget {...common} standard={standard} usage={ctx.usage(pointer)} />
+        <OpenSetWidget
+          {...common}
+          standard={standard}
+          usage={ctx.usage(pointer)}
+          namespacePattern={eff.namespacePattern}
+          namespace={ctx.namespace}
+        />
       ) : (
         <TextWidget {...common} placeholder={placeholder} />
       );

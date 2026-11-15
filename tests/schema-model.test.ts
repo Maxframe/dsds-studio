@@ -201,3 +201,32 @@ describe('pointers a list must contain', () => {
     expect(containsChoices(bundle, uses)).toEqual([]);
   });
 });
+
+describe('fields that accept a namespaced custom value', () => {
+  it('reports the schema pattern for an open set like an entry or section kind', () => {
+    const kind = propertyOf(bundle, entryEff({ kind: 'component' }), 'kind', 'component')!;
+    expect(kind.namespacePattern).toMatch(/\\\./);
+    expect(kind.suggestions).toEqual(expect.arrayContaining(['component', 'token']));
+    const e = entryEff({ kind: 'component' });
+    const sections = propertyOf(bundle, e, 'sections', [])!.items!;
+    const sectionKind = propertyOf(
+      bundle,
+      effective(bundle, sections, { kind: 'guidelines' }),
+      'kind',
+      'guidelines',
+    )!;
+    expect(sectionKind.namespacePattern).toBeTruthy();
+  });
+
+  it('is absent for a closed set', () => {
+    const e = entryEff({ kind: 'component' });
+    const sections = propertyOf(bundle, e, 'sections', [])!.items!;
+    const audience = propertyOf(
+      bundle,
+      effective(bundle, sections, { kind: 'guidelines' }),
+      'for',
+      'all',
+    )!;
+    expect(audience.namespacePattern).toBeUndefined();
+  });
+});

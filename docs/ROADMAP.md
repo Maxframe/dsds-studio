@@ -89,6 +89,9 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
       [Style guide §1, §4, §5; DSDS-18, 19, 21]
 - [x] Rename the "Decision record" option to "Decision" ("record" is a word the vocabulary avoids for an
       entry) [Conformance §3; AGENTS.md Terminology]
+- [x] Custom kinds take a plain name: the namespace the schema requires (`acme.widget`) is added from
+      the project already uses (else the system entry's id) and hidden everywhere (sidebar, kind field, diff). Reported by use
+      [Style/schema: `common/id` namespaced pattern]
 - [ ] `same-as` target picker offers only items of the same section kind [Processing §4; DSDS-25]
 - [ ] Warn before editing an `id`: published ids should not change; show what refers to it and offer
       to change the name instead [Style guide §6; Specification §3.1; CHANGELOG 0.23.0]

@@ -10,10 +10,11 @@ import {
 import { EntryMenu } from './EntryMenu';
 import { IconButton } from './IconButton';
 import { decisionTemplate, isoDate, nextDecisionId } from '@shared/decision';
+import { kindLabels } from '@shared/namespaced';
 import { insertOps, listRanker } from '@shared/order';
 import { AddEntryPanel, NewEntryInput } from './NewEntry';
 import type { SchemaBundle, SchemaNode } from '@shared/schema';
-import { defaultValueFor, kindOptions } from '@shared/schema';
+import { defaultValueFor, effective, kindOptions, propertyOf } from '@shared/schema';
 import type { EditOp, EntrySummary, ProjectOverview, ValidationResult } from '@shared/types';
 
 export type Selection =
@@ -110,6 +111,8 @@ export function EntryTree(props: {
   entryItems: SchemaNode | null;
   /** The schema node for items of the base document's `shared` list. */
   sharedItems: SchemaNode | null;
+  /** The namespace a new custom kind gets, so nobody has to type it. */
+  namespace: string;
   apply(file: string, ops: EditOp[]): Promise<void>;
   onRemove(entry: EntrySummary): void;
   onDuplicate(entry: EntrySummary): void;
@@ -125,6 +128,11 @@ export function EntryTree(props: {
   const [adding, setAdding] = useState<string | 'panel' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const kinds = bundle && entryItems ? kindOptions(bundle, entryItems) : [];
+  // The schema's pattern for a custom kind, so what is typed can be made valid.
+  const kindPattern =
+    bundle && entryItems
+      ? propertyOf(bundle, effective(bundle, entryItems, {}), 'kind', undefined)?.namespacePattern
+      : undefined;
   const canAdd = !!bundle && !!baseFile && !!entryItems;
   const kindsInUse = new Map<string, number>();
   for (const e of overview.entries) {
@@ -189,6 +197,11 @@ export function EntryTree(props: {
     setAdding(adding === what ? null : what);
   };
 
+  // A custom kind is shown by its own name, without the namespace the schema requires.
+  const groups = groupEntries(overview.entries);
+  const labels = kindLabels(groups.map(([g]) => g));
+  const labelOf = (group: string) => labels.get(group) ?? group;
+
   return (
     <div>
       <div className="tree-group tree-rows">
@@ -209,6 +222,8 @@ export function EntryTree(props: {
         {adding === 'panel' ? (
           <AddEntryPanel
             standard={kinds}
+            namespace={props.namespace}
+            pattern={kindPattern}
             inUse={kindsInUse}
             onCreate={(kind, name) => void create(kind, name)}
             onCreateDecision={(title) => void createDecision(title)}
@@ -241,7 +256,7 @@ export function EntryTree(props: {
         })}
       </div>
 
-      {groupEntries(overview.entries).map(([group, entries]) => (
+      {groups.map(([group, entries]) => (
         <Collapsible
           key={group}
           defaultOpen
@@ -256,13 +271,13 @@ export function EntryTree(props: {
                   aria-hidden
                   className="size-4 transition-transform group-data-[state=open]:rotate-90 motion-reduce:transition-none"
                 />
-                <span className="inline-block first-letter:uppercase">{group}</span>
+                <span className="inline-block first-letter:uppercase">{labelOf(group)}</span>
               </CollapsibleTrigger>
             </h2>
             {canAdd && (group !== 'shared' || sharedItems) ? (
               <span className="tree-row-actions">
                 <AddButton
-                  label={`Add ${group} entry`}
+                  label={`Add ${labelOf(group)} entry`}
                   open={adding === group}
                   onClick={() => startAdding(group)}
                 />
@@ -271,7 +286,7 @@ export function EntryTree(props: {
           </div>
           {adding === group ? (
             <NewEntryInput
-              label={`New ${group} name`}
+              label={`New ${labelOf(group)} name`}
               onCreate={(name) => void create(group, name)}
               onCancel={() => setAdding(null)}
               error={error}

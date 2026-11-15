@@ -504,6 +504,91 @@ describe('app', () => {
     });
   });
 
+  describe('custom kinds: the namespace is not for people to type', () => {
+    const baseFile = () => join(ws.root, 'demo-system', 'demo-system.dsds.yaml');
+    const kindsInFile = () =>
+      [...readFileSync(baseFile(), 'utf8').matchAll(/^\s+- kind: (\S+)/gm)].map((m) => m[1]);
+    const addCustom = async (
+      user: ReturnType<typeof userEvent.setup>,
+      kind: string,
+      name: string,
+    ) => {
+      await user.click(await screen.findByRole('button', { name: 'New entry' }));
+      await user.type(screen.getByPlaceholderText('Select or type a kind'), kind);
+      await user.click(screen.getByRole('option', { name: `Use “${kind}”` }));
+      await user.type(screen.getByLabelText('Entry name'), name);
+      await user.click(screen.getByRole('button', { name: 'Create' }));
+    };
+
+    it('takes a plain name, stores it namespaced, and shows the plain name again', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      await addCustom(user, 'Reports', 'Q3 summary');
+      await screen.findByRole('button', { name: 'More actions for Q3 summary' }, { timeout: 5000 });
+      // Stored with the project's own namespace, so the schema accepts it...
+      expect(kindsInFile()).toContain('demo-system.reports');
+      expect(await screen.findByText(/0 errors/)).toBeTruthy();
+      // ...and everywhere the person looks it is just "Reports".
+      expect(screen.getByRole('group', { name: 'Reports' })).toBeTruthy();
+      expect(screen.queryByText(/demo-system\.reports/, { selector: '.tree-group *' })).toBeNull();
+      expect((document.getElementById('/entries/1/kind') as HTMLInputElement).value).toBe(
+        'Reports',
+      );
+    });
+
+    it('offers a custom kind already in use by its plain name, and does not create a twin', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      await addCustom(user, 'Reports', 'One');
+      await screen.findByRole('button', { name: 'More actions for One' }, { timeout: 5000 });
+      await user.click(screen.getByRole('button', { name: 'New entry' }));
+      await user.type(screen.getByPlaceholderText('Select or type a kind'), 'reports');
+      expect(screen.queryByRole('option', { name: /^Use / })).toBeNull();
+      await user.click(screen.getByRole('option', { name: /^Reports/ }));
+      await user.type(screen.getByLabelText('Entry name'), 'Two');
+      await user.click(screen.getByRole('button', { name: 'Create' }));
+      await screen.findByRole('button', { name: 'More actions for Two' }, { timeout: 5000 });
+      expect(kindsInFile().filter((k) => k === 'demo-system.reports')).toHaveLength(2);
+    });
+
+    it('takes the namespace from the system entry id when no custom kind exists yet', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      // The project is called demo-system, but its system entry has an id of its own.
+      writeFileSync(
+        baseFile(),
+        readFileSync(baseFile(), 'utf8').replace('id: demo-system', 'id: acme-design-system'),
+      );
+      await user.click(screen.getByRole('button', { name: 'Back to projects' }));
+      await user.click(await screen.findByRole('button', { name: /demo-system/ }));
+      await addCustom(user, 'Reports', 'Q3 summary');
+      await screen.findByRole('button', { name: 'More actions for Q3 summary' }, { timeout: 5000 });
+      expect(kindsInFile()).toContain('acme-design-system.reports');
+      expect(kindsInFile()).not.toContain('demo-system.reports');
+      expect(await screen.findByText(/0 errors/)).toBeTruthy();
+    });
+
+    it('reuses the namespace the project already has', async () => {
+      const user = userEvent.setup();
+      await openNewProject(user);
+      writeFileSync(
+        baseFile(),
+        readFileSync(baseFile(), 'utf8') +
+          '  - kind: acme.cards\n    id: cards\n    name: Cards\n    description: x\n',
+      );
+      await user.click(screen.getByRole('button', { name: 'Back to projects' }));
+      await user.click(await screen.findByRole('button', { name: /demo-system/ }));
+      await addCustom(user, 'Notes', 'Release notes');
+      await screen.findByRole(
+        'button',
+        { name: 'More actions for Release notes' },
+        { timeout: 5000 },
+      );
+      expect(kindsInFile()).toContain('acme.notes');
+      expect(kindsInFile()).not.toContain('demo-system.notes');
+    });
+  });
+
   it('collapses and restores the YAML panel from the toolbar, remembering the choice', async () => {
     localStorage.clear();
     const user = userEvent.setup();

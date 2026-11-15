@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@web/components/ui/toggle-group';
+import { kindLabels, normalizeCustom } from '@shared/namespaced';
 import { ComboboxField, type ComboOption } from './form/ComboboxField';
 
 /** A name field that appears under a group title: Enter creates, Escape (or leaving it empty) cancels. */
@@ -41,6 +42,9 @@ export function NewEntryInput(props: {
 export function AddEntryPanel(props: {
   standard: string[];
   inUse: Map<string, number>;
+  /** What a new custom kind gets in front of its name, and the schema's pattern for it. */
+  namespace: string;
+  pattern?: string;
   onCreate(kind: string, name: string): void;
   /** A decision (an ADR): a tagged generic entry with its sections ready. */
   onCreateDecision(title: string): void;
@@ -56,6 +60,8 @@ export function AddEntryPanel(props: {
   };
   const custom = [...props.inUse.keys()].filter((v) => !props.standard.includes(v)).sort();
   const decision = mode === 'decision';
+  // People type a plain name and see plain names; the namespace the schema needs is added for them.
+  const labels = kindLabels([...props.standard, ...custom]);
   const ready = (decision || kind !== '') && name.trim() !== '';
   return (
     <form
@@ -87,6 +93,8 @@ export function AddEntryPanel(props: {
           required
           onCommit={(v) => setKind(typeof v === 'string' ? v : '')}
           placeholder="Select or type a kind"
+          display={(v) => labels.get(v) ?? v}
+          normalize={(typed) => normalizeCustom(typed, props.namespace, props.pattern)}
           groups={[
             { heading: 'Standard', options: props.standard.map(used) },
             { heading: 'Custom, in use', options: custom.map(used) },

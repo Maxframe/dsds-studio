@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
 import { fieldUsage } from '@shared/field-usage';
 import { fileNameForId } from '@shared/filename';
+import { projectNamespace } from '@shared/namespaced';
 import { insertOps, listRanker } from '@shared/order';
 import { getAtPointer } from '@shared/pointer';
 import type {
@@ -206,6 +207,17 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const formFocus = focus && focus.source !== 'form' ? focus.pointer : null;
   const yamlFocus = focus && focus.source !== 'yaml' ? focus.pointer : null;
 
+  // New custom kinds get the namespace the project already uses, else its system entry's id.
+  const namespace = useMemo(
+    () =>
+      projectNamespace(
+        (overview?.entries ?? []).flatMap((e) => (e.kind ? [e.kind] : [])),
+        overview?.entries.find((e) => e.kind === 'system')?.id,
+        slug,
+      ),
+    [overview, slug],
+  );
+
   const ctx: FormContext | null = useMemo(
     () =>
       bundle && open
@@ -216,10 +228,11 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             targets,
             usage: (pointer) =>
               fieldUsage(open.state.value, pointer, open.path, overview?.entries ?? []),
+            namespace,
             focus: formFocus,
           }
         : null,
-    [bundle, open, applyTo, validation, targets, overview, formFocus],
+    [bundle, open, applyTo, validation, targets, overview, formFocus, namespace],
   );
 
   // Bring the form to a field the other view pointed at.
@@ -538,6 +551,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             bundle={bundle}
             entryItems={nodes?.entryItems ?? null}
             sharedItems={nodes?.sharedItems ?? null}
+            namespace={namespace}
             apply={applyTo}
             onRemove={(e) => void removeEntry(e)}
             onDuplicate={(e) => void duplicateEntry(e)}

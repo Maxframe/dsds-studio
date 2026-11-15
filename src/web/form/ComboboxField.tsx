@@ -35,9 +35,10 @@ interface Section {
   items: Row[];
 }
 
-const matches = (o: ComboOption, query: string) =>
+const matches = (o: ComboOption, query: string, label: string) =>
   query === '' ||
   o.value.toLowerCase().includes(query) ||
+  label.toLowerCase().includes(query) ||
   (o.keywords ?? []).some((k) => k.toLowerCase().includes(query));
 
 /**
@@ -53,7 +54,16 @@ export function ComboboxField({
   required,
   groups,
   placeholder,
-}: Common & { groups: ComboGroup[]; placeholder: string }) {
+  display = (v) => v,
+  normalize,
+}: Common & {
+  groups: ComboGroup[];
+  placeholder: string;
+  /** What to show for a value: a custom kind without its namespace. Default: the value itself. */
+  display?: (value: string) => string;
+  /** Turns typed text into the value to store, or null when it cannot be one. */
+  normalize?: (typed: string) => string | null;
+}) {
   const current = typeof value === 'string' ? value : '';
   // The text being typed, or null while the field just shows the saved value (so opening the list
   // starts unfiltered instead of filtering by the current value).
@@ -61,9 +71,15 @@ export function ComboboxField({
   const query = (draft ?? '').trim();
   const q = query.toLowerCase();
 
-  const known = groups.some((g) => g.options.some((o) => o.value === query));
+  // Typed text is known when it is a listed value, or the name a listed value is shown under.
+  const known = groups.some((g) =>
+    g.options.some((o) => o.value === query || display(o.value).toLowerCase() === q),
+  );
   const sections: Section[] = groups
-    .map((g) => ({ value: g.heading ?? '', items: g.options.filter((o) => matches(o, q)) }))
+    .map((g) => ({
+      value: g.heading ?? '',
+      items: g.options.filter((o) => matches(o, q, display(o.value))),
+    }))
     .filter((s) => s.items.length > 0);
   if (query && !known) sections.push({ value: '', items: [{ value: query, create: true }] });
 
@@ -79,10 +95,13 @@ export function ComboboxField({
       onValueChange={(row, details) => {
         // Only a chosen row (click or Enter) or the clear button commits. Emptying the text also
         // reports "no selection", and must not wipe the saved value.
-        if (details.reason === 'item-press' || details.reason === 'clear-press')
-          choose(row?.value ?? '');
+        if (details.reason === 'item-press' || details.reason === 'clear-press') {
+          // A typed new value is stored in its valid form (a custom kind gets its namespace).
+          const next = row?.create && normalize ? normalize(row.value) : (row?.value ?? '');
+          if (next !== null) choose(next);
+        }
       }}
-      inputValue={draft ?? current}
+      inputValue={draft ?? (current ? display(current) : '')}
       onInputValueChange={(text, details) => {
         // Typing, or emptying the field, is editing; selecting a row or closing is not.
         if (details.reason === 'input-change' || details.reason === 'input-clear') setDraft(text);
@@ -91,7 +110,7 @@ export function ComboboxField({
         if (!open) setDraft(null);
       }}
       filter={null}
-      itemToStringLabel={(row) => row.value}
+      itemToStringLabel={(row) => (row.create ? row.value : display(row.value))}
       isItemEqualToValue={(a, b) => a.value === b.value}
       autoHighlight={query !== ''}
       openOnInputClick
@@ -118,7 +137,7 @@ export function ComboboxField({
                       <span className="truncate">Use “{row.value}”</span>
                     ) : (
                       <>
-                        <span className="truncate">{row.value}</span>
+                        <span className="truncate">{display(row.value)}</span>
                         {row.hint ? (
                           <span className="ml-auto truncate text-muted-foreground">{row.hint}</span>
                         ) : null}

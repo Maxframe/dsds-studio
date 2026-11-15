@@ -7,6 +7,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@web/components/ui/dialog';
+import { kindLabels } from '@shared/namespaced';
 import { api } from './api';
 
 export interface CompareTarget {
@@ -28,7 +29,7 @@ function summary(entries: EntryChange[]): string {
   return parts.map(([count, word]) => `${count} ${word}`).join(', ');
 }
 
-function Entry({ e }: { e: EntryChange }) {
+function Entry({ e, kinds }: { e: EntryChange; kinds: Map<string, string> }) {
   const title = e.name ?? e.id;
   return (
     <li className="diff-entry">
@@ -37,7 +38,7 @@ function Entry({ e }: { e: EntryChange }) {
         <span className={`badge diff-status diff-status--${e.status}`}>
           {STATUS_WORD[e.status]}
         </span>
-        {e.kind ? <span className="badge">{e.kind}</span> : null}
+        {e.kind ? <span className="badge">{kinds.get(e.kind) ?? e.kind}</span> : null}
         {e.deprecated ? <span className="badge badge--warning">now deprecated</span> : null}
         <span className="diff-where">{e.file}</span>
       </div>
@@ -89,6 +90,9 @@ export function ChangesDialog(props: {
     };
   }, [slug, target]);
 
+  // A custom kind is shown by its own name, without its namespace.
+  const kinds = kindLabels((diff?.entries ?? []).flatMap((e) => (e.kind ? [e.kind] : [])));
+
   return (
     <Dialog open={target !== null} onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="sm:max-w-2xl">
@@ -104,7 +108,7 @@ export function ChangesDialog(props: {
         {diff && diff.entries.length > 0 ? (
           <ul className="diff-list">
             {diff.entries.map((e) => (
-              <Entry key={e.key} e={e} />
+              <Entry key={e.key} e={e} kinds={kinds} />
             ))}
           </ul>
         ) : null}

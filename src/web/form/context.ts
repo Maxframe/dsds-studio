@@ -10,6 +10,8 @@ export interface FormContext {
   targets: RefTarget[];
   /** Values other fields like the one at `pointer` hold, with how many fields hold each. */
   usage(pointer: string): Map<string, number>;
+  /** The namespace a new custom value (like a custom kind) gets, so nobody has to type it. */
+  namespace: string;
   /** Pointer to scroll to and highlight (set by clicking a validation finding). */
   focus: string | null;
 }

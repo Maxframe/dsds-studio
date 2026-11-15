@@ -34,8 +34,25 @@ export interface EffectiveSchema {
    * Empty when the schema does not say.
    */
   contains?: SchemaNode[];
+  /**
+   * Set when the field accepts a namespaced custom value besides its well-known ones (an open set
+   * like `kind`): the schema's own pattern for that value. Found by what the pattern accepts, a
+   * dotted name but not a bare one, not by where it came from.
+   */
+  namespacePattern?: string;
   /** The object's keys have to match this pattern (e.g. namespaced `$extensions` keys). */
   keyPattern?: string;
+}
+
+/** A pattern that accepts a dotted name like `acme.widget` but not a bare one like `widget`. */
+function isNamespacePattern(p: unknown): p is string {
+  if (typeof p !== 'string') return false;
+  try {
+    const re = new RegExp(p);
+    return re.test('acme.widget') && !re.test('widget');
+  } catch {
+    return false;
+  }
 }
 
 const isObject = (v: unknown): v is JsonSchema =>
@@ -116,6 +133,7 @@ export function effective(bundle: SchemaBundle, node: SchemaNode, value: unknown
       // values as suggestions instead of forcing a choice.
       if (derefd.every((d) => d.type === 'string')) {
         eff.type ??= 'string';
+        eff.namespacePattern ??= derefd.map((d) => d.pattern).find(isNamespacePattern);
         for (const d of derefd) {
           if (Array.isArray(d.enum)) stringVariantEnums.push(...d.enum);
           eff.default ??= d.default;

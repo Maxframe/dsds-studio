@@ -35,6 +35,7 @@ function setup(value: unknown, extra: Partial<FormContext> = {}) {
     findings: [],
     targets: [],
     usage: () => new Map(),
+    namespace: 'acme',
     focus: null,
     ...extra,
   };
@@ -479,13 +480,40 @@ describe('schema-driven form', () => {
       expect(labels(group('Standard'))).toEqual(
         expect.arrayContaining(['system', 'component2 in use']),
       );
-      expect(labels(group('Custom, in use'))).toEqual(['acme.widget1 in use']);
+      // A custom kind is shown by its own name; its namespace stays out of sight.
+      expect(labels(group('Custom, in use'))).toEqual(['Widget1 in use']);
     });
 
     it('commits a standard or already used value', async () => {
       const { apply, user } = setup(component, { usage });
       await user.click(kindField());
-      await user.click(screen.getByRole('option', { name: /acme\.widget/ }));
+      await user.click(screen.getByRole('option', { name: /Widget/ }));
+      expect(apply).toHaveBeenCalledWith([
+        { op: 'set', pointer: kindPointer, value: 'acme.widget' },
+      ]);
+    });
+
+    it('shows a custom kind by its own name', () => {
+      setup({ ...component, kind: 'acme.my-widget' }, { usage });
+      expect(kindField().value).toBe('My widget');
+    });
+
+    it('stores a plain name typed as a new kind with the project namespace', async () => {
+      const { apply, user } = setup(component, { usage });
+      await user.clear(kindField());
+      await user.type(kindField(), 'Release notes');
+      await user.click(screen.getByRole('option', { name: 'Use “Release notes”' }));
+      expect(apply).toHaveBeenCalledWith([
+        { op: 'set', pointer: kindPointer, value: 'acme.release-notes' },
+      ]);
+    });
+
+    it('does not offer to create a name that an existing custom kind already has', async () => {
+      const { apply, user } = setup(component, { usage });
+      await user.clear(kindField());
+      await user.type(kindField(), 'widget');
+      expect(screen.queryByRole('option', { name: /^Use / })).toBeNull();
+      await user.click(screen.getByRole('option', { name: /Widget/ }));
       expect(apply).toHaveBeenCalledWith([
         { op: 'set', pointer: kindPointer, value: 'acme.widget' },
       ]);
@@ -496,7 +524,7 @@ describe('schema-driven form', () => {
       await user.clear(kindField());
       await user.type(kindField(), 'acme.');
       expect(labels(within(screen.getByRole('listbox')))).toEqual([
-        'acme.widget1 in use',
+        'Widget1 in use',
         'Use “acme.”',
       ]);
       await user.type(kindField(), 'fresh');
