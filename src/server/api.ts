@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { Hono } from 'hono';
 import type { EditOp, ValidationResult } from '@shared/types';
 import { DsdsDocument } from './documents/document';
@@ -159,7 +159,14 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     if (typeof text !== 'string') return fail('text is required');
     const doc = DsdsDocument.parse(text);
     if (doc.parseErrors.length) return fail(`Does not parse: ${doc.parseErrors[0]}`);
-    writeFileSync(abs, text);
+    try {
+      // The path was checked to be inside the project, so its folders may be created: a new file
+      // can go in a subfolder that is not there yet.
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, text);
+    } catch (e) {
+      return fail(`Could not save the file: ${(e as Error).message}`);
+    }
     const project = Project.load({ dir: workspace.dirOf(slug) as string });
     const match = project.pack();
     const validation = match ? project.validate(match.pack.version).get(path) : undefined;

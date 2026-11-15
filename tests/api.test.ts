@@ -49,6 +49,29 @@ describe('projects', () => {
   });
 });
 
+describe('saving a file into a folder that does not exist yet', () => {
+  const put = (path: string) =>
+    api.request(`/api/projects/acme-design/file?path=${encodeURIComponent(path)}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ text: 'kind: entry\nid: x\nname: X\ndescription: x\n' }),
+    });
+
+  it('creates the folders it needs', async () => {
+    await createProject();
+    const res = await put('entries/color/action.dsds.yaml');
+    expect(res.status).toBe(200);
+    expect(existsSync(join(ws.root, 'acme-design', 'entries/color/action.dsds.yaml'))).toBe(true);
+  });
+
+  it('still refuses a path that leaves the project, and creates nothing for it', async () => {
+    await createProject();
+    const res = await put('../escape/x.dsds.yaml');
+    expect(res.status).toBe(400);
+    expect(existsSync(join(ws.root, 'escape'))).toBe(false);
+  });
+});
+
 describe('files', () => {
   const path = 'acme-design.dsds.yaml';
 
