@@ -1,5 +1,5 @@
 /*
- * The sidebar and YAML panel keep their set widths on a wide window. On a narrow one the sidebar
+ * The sidebar and code panel keep their set widths on a wide window. On a narrow one the sidebar
  * gives up to 30% of the width, and the panel shrinks (down to its minimum) so the form in the
  * middle keeps at least --layout-main-min-width.
  */
@@ -15,7 +15,7 @@
   height: 100vh;
 }
 /*
- * Collapsed YAML panel: its column shrinks to nothing but stays mounted, so the editor keeps its
+ * Collapsed code panel: its column shrinks to nothing but stays mounted, so the editor keeps its
  * text and cursor.
  */
 .project-shell--no-panel {
@@ -27,7 +27,7 @@
 }
 /* Gone entirely: even hidden, its touch target would poke past the window edge and add a scrollbar.
    The panel's column and the one before it are both 0 wide, so the grid placement still works. */
-.project-shell--no-panel .resizer[aria-label='Resize YAML panel'] {
+.project-shell--no-panel .resizer[aria-label='Resize code panel'] {
   display: none;
 }
 /* A column is one pane: its own toolbar on top, then the scrolling content. */
@@ -183,7 +183,7 @@
   background: var(--color-surface);
   border-left: 1px solid var(--color-border);
 }
-.yaml-panel {
+.code-panel {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -195,11 +195,15 @@
   overflow: hidden;
 }
 /* Sticky ancestors: the enclosing lines pinned over the top of the YAML editor (stickyAncestors.ts). */
+.cm-editor .cm-line {
+  padding-left: calc(var(--wrap-indent, 0) * 1ch + var(--space-xs));
+  text-indent: calc(var(--wrap-indent, 0) * -1ch);
+}
 .cm-sticky {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
+  right: var(--sticky-scrollbar, 0);
   z-index: 5;
   font-family: var(--font-code);
   font-size: var(--text-small);
@@ -220,7 +224,7 @@
   flex: none;
   box-sizing: border-box;
   width: var(--sticky-gutter);
-  padding: 0 var(--space-sm);
+  padding: var(--sticky-num-padding, 0);
   text-align: right;
   color: var(--color-text-muted);
   background: var(--color-surface-sunken);
@@ -397,8 +401,9 @@
 }
 
 /* Syntax colors for the YAML editor (CodeMirror's class highlighter), from tokens. */
-.tok-propertyName {
-  color: var(--color-primary);
+.tok-propertyName,
+.tok-definition {
+  color: var(--color-syntax-key);
 }
 .tok-string,
 .tok-string2 {

@@ -23,10 +23,10 @@ Work top to bottom. Each item has an acceptance check; tick it only when `npm ru
 - [x] Schema-driven form renderer with raw-YAML fallback per subtree
 - [x] Entry editor: envelope, sections (add/reorder/audience), kind-specific fields, metadata
 - [x] Ref picker with `entry#address` autocomplete
-- [x] `dsds:` inline-link autocomplete in Markdown fields (form + YAML panel)
+- [x] `dsds:` inline-link autocomplete in Markdown fields (form + code panel)
 - [x] Validation panel, click to jump to field
-- [x] Live YAML panel with two-way sync and cross-view field highlighting; remove entries
-- [x] Browser walkthrough: dark and light mode, narrow widths (the YAML panel shrinks so the form keeps
+- [x] Live code panel with two-way sync and cross-view field highlighting; remove entries
+- [x] Browser walkthrough: dark and light mode, narrow widths (the code panel shrinks so the form keeps
       a usable width), scroll-to-finding from the panel
 - [x] Form edits save in style-guide field order (pack's `dsds-format`, run on `file/ops`)
 - [x] Lint (advisory) findings panel: the pack's `lint-docs.js` runs per project; results show as

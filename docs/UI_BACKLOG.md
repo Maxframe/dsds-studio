@@ -32,7 +32,7 @@ Seen in the browser while testing (not yet decided, say which you want):
 
 - Layout pass: each pane has its own toolbar (back, truncating title, settings; entry title and
   remove; empty), draggable dividers are transparent touch targets, the tree rows are ghost buttons
-  with a "more" menu (duplicate, remove), and the YAML panel shrinks on narrow windows. Light mode,
+  with a "more" menu (duplicate, remove), and the code panel shrinks on narrow windows. Light mode,
   dark mode and a 700px window were walked through.
 
 - shadcn migration (ADR 0003): buttons, inputs, selects, the ref picker, the `dsds:` suggestions
@@ -54,5 +54,5 @@ Seen in the browser while testing (not yet decided, say which you want):
   fields the schema doesn't know). Required fields have none. Nested content asks first.
 - Remove any entry (button in the editor and in the tree, with an in-app confirmation; a
   standalone entry's file is moved to `.dsds-trash/`).
-- Live YAML panel to the right of the form, two-way and live; the focused field is highlighted
+- Live code panel to the right of the form, two-way and live; the focused field is highlighted
   in the other view, and moving the YAML cursor into another entry switches the form to it.

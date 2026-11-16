@@ -1,4 +1,4 @@
-import { ArrowLeft, PanelRight } from 'lucide-react';
+import { ArrowLeft, Braces } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SchemaBundle, effective, nodeOf, propertyOf, type SchemaNode } from '@shared/schema';
 import { fieldUsage } from '@shared/field-usage';
@@ -33,7 +33,7 @@ import type { RestoreMode } from './RestoreDialog';
 import { EntryTree, removeHint, sameSelection, type Selection } from './EntryTree';
 import { ValidationPanel } from './ValidationPanel';
 import { Resizer } from './Resizer';
-import { YamlPanel } from './YamlPanel';
+import { CodePanel } from './CodePanel';
 import { useYamlAutosave } from './useYamlAutosave';
 import { FormProvider, type FormContext } from './form/context';
 import { SchemaField } from './form/SchemaField';
@@ -66,7 +66,7 @@ function scrollFormTo(pointer: string) {
 
 const PANEL_KEY = 'dsds-studio.panel-open';
 
-/** The YAML panel is open unless the viewer collapsed it. */
+/** The code panel is open unless the viewer collapsed it. */
 function loadPanelOpen(): boolean {
   try {
     return localStorage.getItem(PANEL_KEY) !== 'false';
@@ -107,7 +107,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   const [settings, updateSettings] = useSettings();
   const [widths, setWidths] = useState<Widths>(loadWidths);
   const [panelOpen, setPanelOpen] = useState(loadPanelOpen);
-  // The toggle sits at the window's right edge in both states: in the YAML panel's toolbar while it
+  // The toggle sits at the window's right edge in both states: in the code panel's toolbar while it
   // is open, in the form's toolbar once it is collapsed. It is a different element then, so focus
   // is moved to it after a click, and the keyboard user stays on the control.
   const refocusToggle = useRef(false);
@@ -662,11 +662,11 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
       variant="ghost"
       size="icon"
       className="ml-auto"
-      label={panelOpen ? 'Hide editor panel' : 'Show editor panel'}
+      label={panelOpen ? 'Hide code panel' : 'Show code panel'}
       aria-pressed={panelOpen}
       onClick={togglePanel}
     >
-      <PanelRight />
+      <Braces />
     </IconButton>
   );
 
@@ -731,11 +731,11 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
         </header>
         <div className="pane">{editor}</div>
       </main>
-      <Resizer side="right" label="Resize YAML panel" onResize={resize('panel')} />
+      <Resizer side="right" label="Resize code panel" onResize={resize('panel')} />
       <aside className="column column--right">
         <header className="toolbar">{panelOpen ? panelToggle : null}</header>
         {open ? (
-          <YamlPanel
+          <CodePanel
             key={open.path}
             text={open.state.text}
             highlightPointer={yamlFocus}
@@ -746,7 +746,7 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
             status={yaml.status}
           />
         ) : (
-          <div className="yaml-panel" />
+          <div className="code-panel" />
         )}
         <div className="validation-panel">
           <ValidationPanel result={validation} onJump={jump} />

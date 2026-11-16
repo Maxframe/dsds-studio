@@ -62,11 +62,21 @@ const plugin = ViewPlugin.fromClass(
             found = next;
           }
           const gutter = view.dom.querySelector<HTMLElement>('.cm-gutters');
-          return { found, gutter: gutter?.offsetWidth ?? 0 };
+          // Copy the real line-number cell's padding so both columns line up at any digit count.
+          const cell = view.dom.querySelector<HTMLElement>('.cm-lineNumbers .cm-gutterElement');
+          const pad = cell ? getComputedStyle(cell) : null;
+          return {
+            found,
+            gutter: gutter?.offsetWidth ?? 0,
+            scrollbar: view.scrollDOM.offsetWidth - view.scrollDOM.clientWidth,
+            padding: pad
+              ? `${pad.paddingTop} ${pad.paddingRight} ${pad.paddingBottom} ${pad.paddingLeft}`
+              : '',
+          };
         },
-        write: ({ found, gutter }, view) => {
+        write: ({ found, gutter, padding, scrollbar }, view) => {
           const doc = view.state.doc;
-          const key = `${gutter}|${found.map((n) => `${n}:${doc.line(n).text}`).join('\n')}`;
+          const key = `${gutter}|${scrollbar}|${padding}|${found.map((n) => `${n}:${doc.line(n).text}`).join('\n')}`;
           if (key === this.shown) return;
           this.shown = key;
           this.box.replaceChildren(
@@ -85,7 +95,9 @@ const plugin = ViewPlugin.fromClass(
             }),
           );
           this.box.style.display = found.length ? '' : 'none';
+          this.box.style.setProperty('--sticky-scrollbar', `${scrollbar}px`);
           this.box.style.setProperty('--sticky-gutter', `${gutter}px`);
+          if (padding) this.box.style.setProperty('--sticky-num-padding', padding);
         },
       });
     }

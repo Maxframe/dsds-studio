@@ -473,7 +473,7 @@ describe('app', () => {
     await openNewProject(user);
     await addEntry(user, 'component', 'Button');
     await screen.findByRole('button', { name: 'More actions for Button' }, { timeout: 5000 });
-    const toolbar = ['Back to projects', 'Settings', 'Hide editor panel'];
+    const toolbar = ['Back to projects', 'Settings', 'Hide code panel'];
     for (const name of toolbar) expect(screen.getByRole('button', { name })).toBeTruthy();
     expect(iconOnlyButtons().length).toBeGreaterThanOrEqual(8);
     expect(iconButtonsMissingHints()).toEqual([]);
@@ -853,27 +853,27 @@ entries:
     });
   });
 
-  it('collapses and restores the YAML panel from the toolbar, remembering the choice', async () => {
+  it('collapses and restores the code panel from the toolbar, remembering the choice', async () => {
     localStorage.clear();
     const user = userEvent.setup();
     await openNewProject(user);
     const shell = () => document.querySelector('.project-shell') as HTMLElement;
-    const hide = screen.getByRole('button', { name: 'Hide editor panel' });
+    const hide = screen.getByRole('button', { name: 'Hide code panel' });
     expect(hide.getAttribute('aria-pressed')).toBe('true');
-    // Open: the button is in the YAML panel's toolbar, at the window's right edge.
+    // Open: the button is in the code panel's toolbar, at the window's right edge.
     expect(hide.closest('.column--right')).toBeTruthy();
     await user.click(hide);
     expect(shell().classList.contains('project-shell--no-panel')).toBe(true);
     expect(localStorage.getItem('dsds-studio.panel-open')).toBe('false');
     // Collapsed: the same control is now in the form's toolbar, which has become the right edge, and
     // it keeps the keyboard focus the click gave it.
-    const show = screen.getByRole('button', { name: 'Show editor panel' });
+    const show = screen.getByRole('button', { name: 'Show code panel' });
     expect(show.closest('.column--right')).toBeNull();
     expect(show.closest('main')).toBeTruthy();
     expect(document.activeElement).toBe(show);
     // The editor stays mounted, so its text is still there when the panel comes back.
     expect(yamlText()).toContain('schemaVersion');
-    await user.click(screen.getByRole('button', { name: 'Show editor panel' }));
+    await user.click(screen.getByRole('button', { name: 'Show code panel' }));
     expect(shell().classList.contains('project-shell--no-panel')).toBe(false);
     localStorage.clear();
   });

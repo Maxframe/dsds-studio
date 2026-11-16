@@ -9,7 +9,7 @@ const SAVE_DELAY_MS = 500;
 const firstLine = (s: string) => s.split('\n')[0] ?? s;
 
 /**
- * Autosave for text typed in the YAML panel: waits for a pause in typing, refuses text that does
+ * Autosave for text typed in the code panel: waits for a pause in typing, refuses text that does
  * not parse, and lets other edits flush pending text first so nothing is lost or overwritten.
  */
 export function useYamlAutosave(

@@ -24,6 +24,7 @@ import { classHighlighter } from '@lezer/highlight';
 import { linkInYaml, suggestTargets } from '@shared/dsds-links';
 import type { RefTarget } from '@shared/types';
 import { stickyAncestors } from './stickyAncestors';
+import { wrapIndent } from './wrapIndent';
 import { locatePointer, pointerAtOffset } from '@shared/yaml-locate';
 
 /** Marks changes we make ourselves (syncing from the form), so they are not treated as typing. */
@@ -112,7 +113,7 @@ function replaceDoc(view: EditorView, next: string) {
   });
 }
 
-export function YamlPanel(props: {
+export function CodePanel(props: {
   /** The saved text of the open file. */
   text: string;
   /** Pointer to highlight (the field being edited in the form), or null. */
@@ -171,6 +172,7 @@ export function YamlPanel(props: {
           }),
           syntaxHighlighting(classHighlighter),
           EditorView.lineWrapping,
+          wrapIndent(),
           highlightField,
           theme,
           EditorView.contentAttributes.of({ 'aria-label': 'Document YAML' }),
@@ -230,7 +232,7 @@ export function YamlPanel(props: {
   }, [props.highlightPointer, props.text]);
 
   return (
-    <div className="yaml-panel">
+    <div className="code-panel">
       <div className="yaml-host" ref={host} data-testid="yaml-editor" />
       <div className={`yaml-status yaml-status--${props.status.kind}`} role="status">
         {props.status.message}
