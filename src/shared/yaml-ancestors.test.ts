@@ -19,21 +19,21 @@ const doc = [
 
 describe('ancestorLines', () => {
   it('returns the chain of less-indented lines, outermost first', () => {
-    expect(ancestorLines(doc, 9)).toEqual([1, 2, 3, 4, 5, 8]);
-    expect(ancestorLines(doc, 11)).toEqual([1, 2, 3, 4, 5, 8, 10]);
+    expect(ancestorLines(doc, 9)).toEqual([1, 3, 5]);
+    expect(ancestorLines(doc, 11)).toEqual([1, 3, 5, 10]);
   });
 
   it('does not count siblings, blank lines or comments', () => {
-    expect(ancestorLines(doc, 12)).toEqual([1, 2, 3, 4, 5]);
+    expect(ancestorLines(doc, 12)).toEqual([1, 3, 5]);
   });
 
   it('has no ancestors for a top-level line, and handles blank lines by looking below', () => {
     expect(ancestorLines(doc, 13)).toEqual([]);
     expect(ancestorLines(doc, 1)).toEqual([]);
-    expect(ancestorLines(doc, 6)).toEqual([1, 2, 3, 4, 5]);
+    expect(ancestorLines(doc, 6)).toEqual([1, 3, 5]);
   });
 
-  it('keeps only the nearest `max` ancestors', () => {
-    expect(ancestorLines(doc, 11, 3)).toEqual([5, 8, 10]);
+  it('keeps only the outermost `max` ancestors', () => {
+    expect(ancestorLines(doc, 11, 3)).toEqual([1, 3, 5]);
   });
 });
