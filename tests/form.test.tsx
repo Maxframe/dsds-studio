@@ -92,6 +92,19 @@ describe('adding a guideline item', () => {
   });
 });
 
+describe('adding a step', () => {
+  it('starts with its title: a step needs one unless it only points elsewhere', async () => {
+    const { apply, user } = setup({
+      ...component,
+      sections: [{ kind: 'steps', for: 'all', items: [{ title: 'First' }] }],
+    });
+    await user.click(screen.getByRole('button', { name: '+ Add items' }));
+    expect(apply.mock.calls[0]?.[0]).toEqual([
+      { op: 'append', pointer: '/entries/0/sections/0/items', value: { title: '' } },
+    ]);
+  });
+});
+
 describe('adding a pointer to a list of refs', () => {
   const withRefs = {
     ...component,

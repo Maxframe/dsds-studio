@@ -174,7 +174,10 @@ export function propertyOf(
 
 /** A starting value for a new field/item: required fields filled with sensible blanks. */
 export function defaultValueFor(bundle: SchemaBundle, node: SchemaNode, seed?: unknown): unknown {
-  const eff = effective(bundle, node, seed);
+  let eff = effective(bundle, node, seed);
+  // A new object is not `undefined` but empty: that is what `if`/`then` rules (a step needs a
+  // `title` unless it only points elsewhere) are evaluated against.
+  if (eff.type === 'object' && seed === undefined) eff = effective(bundle, node, {});
   if (eff.const !== undefined) return eff.const;
   if (eff.default !== undefined) return eff.default;
   switch (eff.type) {
