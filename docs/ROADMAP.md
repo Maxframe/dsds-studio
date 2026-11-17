@@ -98,3 +98,37 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
 ## M5: Future-proofing proof
 
 - [ ] Synthetic "future" pack with a new field and kind: app handles it with zero code change
+
+## M6: Graph view
+
+A relationship graph over the project resolver's data (outgoing pointers plus computed `incoming`).
+Prototype and research: https://claude.ai/artifact/UFfe9s2H4oXDcRPcrFnccB. Layout engine: `d3-force`
+(layout only; we draw the SVG ourselves so all colour and line styling stays on tokens). Record the
+dependency choice in an ADR. Reference implementation to read first: Quartz's graph component.
+
+Approach: reuse existing open-source code (d3, Quartz's graph component and similar) so the graph
+scales to large projects, and write our own only where nothing fits. Check each license before
+copying code, and keep attribution. Whatever is reused must still meet the rules: colours from
+tokens, a keyboard and list path, no `dsds:` `href`s.
+
+- [ ] Graph model in `src/shared`: nodes and edges from the resolver (typed relations, plus inline
+      `dsds:` links as their own filterable relation group), neighbourhood by depth (1-3) and
+      direction, relation and kind filters, plus issue flags (DSDS-08 missing target, DSDS-06 `uses`
+      cycle, no relations). Relation and kind lists come from the active pack's schema, never
+      hardcoded; unknown values render as a generic node and a neutral dotted edge
+- [ ] Graph tokens in `tokens.css` (`--color-graph-*`): kind colours and relation line styles, light and
+      dark; `check:tokens` stays green
+- [ ] Local graph panel beside the entry editor: depth, direction and relation filters, selection
+      inspector, "re-center here"; filters are remembered separately for local and global. Nodes can
+      be dragged to untangle a view; positions are not saved and reset when the view changes
+- [ ] Keyboard and list alternative: Tab and arrow-key navigation, Enter selects, a Graph/List switch
+      showing the same neighbourhood as a table; nodes are in-app buttons, never `dsds:` `href`s
+- [ ] Issues overlay fed by the pack validator's findings (DSDS-05, -06, -08), not reimplemented; the
+      Issues list jumps to the graph node and the form field
+- [ ] Global graph behind the same filters, opened from the project sidebar, with "hide unlinked entries"
+- [ ] Tests: graph model against `packs/*/examples` and the conformance vectors (cross-file, cycles,
+      inverse); layout is deterministic for a given input
+- [ ] Scale spike (before the global graph): try the reused layout and renderer on a synthetic project
+      of 500 and 2000 entries; check frame rate, token styling and keyboard access. Pick the renderer
+      (SVG, or canvas/WebGL if SVG is too slow) from the result and record it in the ADR. Large views
+      also get a notice and filter suggestions
