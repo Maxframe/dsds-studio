@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type { DocumentFormat, EntrySummary, ValidationResult } from '@shared/types';
 import { buildPointer } from '@shared/pointer';
@@ -95,6 +95,26 @@ export class Project {
     return new Project(dir, documents, problems);
   }
 
+  /**
+   * What the design system is called: the name of its system entry, else the name of a base
+   * document. Null when neither has one. Never derived from a folder name.
+   */
+  title(): string | null {
+    const system = this.entries().find((e) => e.kind === 'system' && e.name?.trim());
+    if (system?.name) return system.name.trim();
+    for (const { doc } of this.documents) {
+      const value = doc.toValue();
+      if (
+        doc.isBaseDocument &&
+        isRecord(value) &&
+        typeof value.name === 'string' &&
+        value.name.trim()
+      )
+        return value.name.trim();
+    }
+    return null;
+  }
+
   /** Every entry and shared entry, across all documents. */
   entries(): EntrySummary[] {
     const out: EntrySummary[] = [];
@@ -171,7 +191,10 @@ function discover(dir: string, include: RegExp, recursive: boolean): string[] {
   for (const name of readdirSync(dir).sort()) {
     if (SKIP_DIRS.has(name)) continue;
     const abs = join(dir, name);
-    if (statSync(abs).isDirectory()) {
+    const stat = lstatSync(abs);
+    // A symbolic link points at something outside the project (a linked token folder): skip it.
+    if (stat.isSymbolicLink()) continue;
+    if (stat.isDirectory()) {
       if (recursive) out.push(...discover(abs, include, recursive));
     } else if (include.test(name)) out.push(abs);
   }

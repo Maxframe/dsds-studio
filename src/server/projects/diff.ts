@@ -1,10 +1,10 @@
-import { execFileSync } from 'node:child_process';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { DiffResult, EntryChange, FieldChange } from '@shared/types';
 import { DsdsDocument } from '../documents/document';
 import { DOCUMENT_FILE } from '../workspace';
 import { TRASH_DIR } from './project';
+import { SnapshotStore } from './snapshots';
 
 /**
  * Entry-level comparison of two revisions. Documents are parsed and compared as data, so key
@@ -26,10 +26,7 @@ interface Snap {
   value: Rec;
 }
 
-const git = (dir: string, args: string[]): string =>
-  execFileSync('git', args, { cwd: dir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-
-/** Document texts of a revision: a commit, or the files as they are now. */
+/** Document texts of a revision: a saved version, or the files as they are now. */
 function documentsAt(dir: string, rev: string): Map<string, string> {
   const out = new Map<string, string>();
   const skip = (p: string) => p.split('/').includes(TRASH_DIR) || p.split('/').includes('.git');
@@ -38,14 +35,19 @@ function documentsAt(dir: string, rev: string): Map<string, string> {
       for (const name of readdirSync(join(dir, rel)).sort()) {
         const path = rel ? `${rel}/${name}` : name;
         if (skip(path) || name === 'node_modules') continue;
-        if (statSync(join(dir, path)).isDirectory()) walk(path);
+        const stat = lstatSync(join(dir, path));
+        if (stat.isSymbolicLink()) continue;
+        if (stat.isDirectory()) walk(path);
         else if (DOCUMENT_FILE.test(name)) out.set(path, readFileSync(join(dir, path), 'utf8'));
       }
     })('');
   } else {
-    for (const path of git(dir, ['ls-tree', '-r', '--name-only', '-z', rev]).split('\0')) {
-      if (path && DOCUMENT_FILE.test(path) && !skip(path))
-        out.set(path, git(dir, ['show', `${rev}:${path}`]));
+    const store = new SnapshotStore(dir);
+    const version = store.get(rev);
+    if (!version) throw new Error(`Version ${rev} not found`);
+    for (const path of Object.keys(version.files)) {
+      if (!DOCUMENT_FILE.test(path) || skip(path)) continue;
+      out.set(path, store.read(version, path)?.toString('utf8') ?? '');
     }
   }
   return out;
@@ -136,7 +138,7 @@ const describe = (s: Snap): Pick<EntryChange, 'name' | 'kind'> => ({
 const STUB =
   'Published ids should not change (Specification §3.1). Keep the old entry as a deprecated stub whose replacedBy names the new one.';
 
-/** Compare `from` (a commit id) with `to` (a commit id, or `working` for the files as they are). */
+/** Compare `from` (a version id) with `to` (a version id, or `working` for the files as they are). */
 export function diffRevisions(dir: string, from: string, to: string): DiffResult {
   const a = snapshot(dir, from);
   const b = snapshot(dir, to);

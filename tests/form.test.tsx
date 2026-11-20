@@ -13,6 +13,7 @@ import './dom-polyfills';
 import { iconButtonsMissingHints, iconOnlyButtons } from './icon-buttons';
 import { choose, optionsOf } from './select';
 import { packDir } from './helpers';
+import { HelpContext, type HelpMode } from '../src/web/settings';
 
 const bundle = new SchemaBundle(
   JSON.parse(
@@ -28,7 +29,7 @@ const entryItems = propertyOf(
 
 afterEach(cleanup);
 
-function setup(value: unknown, extra: Partial<FormContext> = {}) {
+function setup(value: unknown, extra: Partial<FormContext> = {}, help: HelpMode = 'inline') {
   const apply = vi.fn<(ops: EditOp[]) => Promise<void>>().mockResolvedValue();
   const ctx: FormContext = {
     bundle,
@@ -45,9 +46,11 @@ function setup(value: unknown, extra: Partial<FormContext> = {}) {
     ...extra,
   };
   render(
-    <FormProvider value={ctx}>
-      <SchemaField node={entryItems} value={value} pointer="/entries/0" />
-    </FormProvider>,
+    <HelpContext.Provider value={help}>
+      <FormProvider value={ctx}>
+        <SchemaField node={entryItems} value={value} pointer="/entries/0" />
+      </FormProvider>
+    </HelpContext.Provider>,
   );
   return { apply, user: userEvent.setup() };
 }
@@ -979,5 +982,43 @@ describe('schema-driven form', () => {
       await user.keyboard('{Escape}');
       expect(screen.queryByRole('listbox')).toBeNull();
     });
+  });
+});
+
+describe('field help display setting', () => {
+  // The label of the first leaf field that has help text, and that text.
+  const firstHelped = () => {
+    const help = document.querySelector<HTMLElement>('.field-head + .field-help')!;
+    const label = help.previousElementSibling!.querySelector<HTMLElement>('label')!;
+    return { help, label };
+  };
+
+  it('shows the help text under the label by default', () => {
+    setup(component);
+    const { help } = firstHelped();
+    expect(help.textContent).not.toBe('');
+    expect(help.classList.contains('sr-only')).toBe(false);
+    expect(document.querySelector('.field-help-icon')).toBeNull();
+  });
+
+  it('puts an info icon with a tooltip next to the label in icon mode', async () => {
+    const { user } = setup(component, {}, 'icon');
+    const { help, label } = firstHelped();
+    // Kept for screen readers, but not shown.
+    expect(help.classList.contains('sr-only')).toBe(true);
+    const icon = help.previousElementSibling!.querySelector<HTMLElement>('.field-help-icon')!;
+    expect(icon.getAttribute('aria-label')).toBe(`About ${label.firstChild!.textContent}`);
+    expect(iconButtonsMissingHints()).toEqual([]);
+    await user.hover(icon);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(help.textContent);
+  });
+
+  it('hides the help text and shows it while hovering the label in hover mode', async () => {
+    const { user } = setup(component, {}, 'hover');
+    const { help, label } = firstHelped();
+    expect(help.classList.contains('sr-only')).toBe(true);
+    expect(document.querySelector('.field-help-icon')).toBeNull();
+    await user.hover(label);
+    expect((await screen.findByRole('tooltip')).textContent).toBe(help.textContent);
   });
 });

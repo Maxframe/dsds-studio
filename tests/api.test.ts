@@ -24,7 +24,7 @@ async function createProject(name = 'Acme Design') {
 }
 
 describe('projects', () => {
-  it('creates a git-backed project with a valid starter document', async () => {
+  it('creates a project with a valid starter document', async () => {
     const { res, body } = await createProject();
     expect(res.status).toBe(201);
     expect(body.slug).toBe('acme-design');
@@ -40,7 +40,7 @@ describe('projects', () => {
     expect((await createProject()).res.status).toBe(409);
     expect((await api.request('/api/projects', json({ name: '  ' }))).status).toBe(400);
     expect(await (await api.request('/api/projects')).json()).toEqual([
-      { slug: 'acme-design', documents: 1 },
+      { slug: 'acme-design', title: 'Acme Design', documents: 1 },
     ]);
   });
 

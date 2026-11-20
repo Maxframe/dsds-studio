@@ -1,6 +1,6 @@
 # 0001: Schema packs, local-only, git for revisions
 
-Status: accepted
+Status: accepted. The git-for-revisions part is superseded by 0006 (snapshots).
 
 - **Local single-user app.** The reference validator is Node and the app needs filesystem and git.
 - **Git per project** for document revisions: free diff, history, tags, optional remote.

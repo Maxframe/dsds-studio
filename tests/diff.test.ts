@@ -1,25 +1,16 @@
-import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { diffRevisions } from '@server/projects/diff';
-import { commitInitialVersion } from '@server/projects/versions';
+import { SnapshotStore } from '@server/projects/snapshots';
+import { createInitialVersion } from '@server/projects/versions';
 
 let dir: string;
 const file = 'ds.dsds.yaml';
-const git = (...args: string[]) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim();
 const write = (name: string, text: string) => writeFileSync(join(dir, name), text);
 const read = (name: string) => readFileSync(join(dir, name), 'utf8');
-const commit = (message: string) => {
-  git('add', '-A');
-  execFileSync(
-    'git',
-    ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', message],
-    { cwd: dir },
-  );
-  return git('rev-parse', 'HEAD');
-};
+const commit = (label: string) => new SnapshotStore(dir).create({ label, kind: 'named' }).id;
 
 const BASE = `schemaVersion: "0.23.1"
 name: Demo
@@ -40,10 +31,9 @@ entries:
 let first: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'dsds-diff-'));
-  git('init', '-q');
   write(file, BASE);
-  commitInitialVersion(dir);
-  first = git('rev-parse', 'HEAD');
+  createInitialVersion(dir);
+  first = new SnapshotStore(dir).list()[0]?.id ?? '';
 });
 
 const entry = (r: ReturnType<typeof diffRevisions>, id: string) =>

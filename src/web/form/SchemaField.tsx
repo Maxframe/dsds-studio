@@ -25,6 +25,8 @@ import type { ResolvedItem, Succession } from '@shared/types';
 import { findingsAt, useForm } from './context';
 import { IconButton } from '../IconButton';
 import { RemoveField } from './RemoveField';
+import { FieldLabel } from './FieldLabel';
+import { useHelpMode } from '../settings';
 import {
   BooleanWidget,
   NumberWidget,
@@ -180,6 +182,8 @@ function FieldShell(props: {
   children: React.ReactNode;
 }) {
   const ctx = useForm();
+  const helpMode = useHelpMode();
+  const help = props.grouped ? undefined : props.description;
   const findings = findingsAt(ctx, props.pointer);
   // A leaf field also lights up when the focus is somewhere inside it (e.g. inside raw YAML).
   const focused =
@@ -197,17 +201,25 @@ function FieldShell(props: {
     <div className={classes} data-pointer={props.pointer}>
       {props.label ? (
         <div className="field-head">
-          <label className="field-label" htmlFor={props.pointer}>
-            {props.label}
-            {props.required ? <span className="field-required"> *</span> : null}
-          </label>
+          <FieldLabel
+            pointer={props.pointer}
+            label={props.label}
+            required={props.required}
+            help={help}
+          />
           {props.removable ? (
             <RemoveField pointer={props.pointer} label={props.label} value={props.value} />
           ) : null}
         </div>
       ) : null}
-      {props.description && !props.grouped ? (
-        <div className="field-help">{props.description}</div>
+      {help ? (
+        // Outside `inline` mode the label carries the text as a tooltip; it stays here for
+        // screen readers. A field without a label has nowhere else to show it.
+        <div
+          className={helpMode === 'inline' || !props.label ? 'field-help' : 'field-help sr-only'}
+        >
+          {help}
+        </div>
       ) : null}
       {props.children}
       {props.error ? <div className="field-note field-note--error">{props.error}</div> : null}

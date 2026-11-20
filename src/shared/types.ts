@@ -52,7 +52,7 @@ export interface DraftChange {
 
 /** The draft: what has changed since the last saved version. */
 export interface DraftState {
-  /** False until the project has a first saved version (an older project, or a folder without git). */
+  /** False until the project has a first saved version (an older project). */
   hasVersion: boolean;
   changed: DraftChange[];
   /** The system's `metadata.version`, offered as the tag for a named version while it is untagged. */
@@ -61,10 +61,10 @@ export interface DraftState {
 
 /** One saved version in a project's history. */
 export interface VersionInfo {
-  /** Full commit id. */
+  /** Version id: 40 hex characters. */
   id: string;
   label: string;
-  /** ISO 8601 author date. */
+  /** ISO 8601 date. */
   date: string;
   /** A quicksave has an automatic label; a named version was given one (when saved, or later). */
   kind: 'quicksave' | 'named';
@@ -133,11 +133,62 @@ export type EditOp =
 
 export interface ProjectInfo {
   slug: string;
+  /** The design system's own name (its system entry), not the folder's; null when there is none. */
+  title?: string | null;
   documents: number;
+  /** Set for a folder opened from elsewhere on disk (M3c); absent for projects in the workspace. */
+  linked?: LinkedProject;
+}
+
+/** A folder opened from anywhere on disk. Paths below `root` are relative; `''` is the root itself. */
+export interface LinkedProject {
+  slug: string;
+  name: string;
+  /** Absolute path of the folder that was opened. */
+  root: string;
+  /** Where the DSDS documents live. Versions cover this folder only. */
+  documentationDir: string;
+  /** Where the design tokens are (read-only, never copied), or null. */
+  tokensDir: string | null;
+}
+
+/** One level of the server-side folder picker. */
+export interface FolderListing {
+  path: string;
+  parent: string | null;
+  home: string;
+  folders: { name: string; path: string }[];
+}
+
+/** What the setup dialog suggests for a folder. Relative paths; `.` is the folder itself. */
+export interface FolderInspection {
+  path: string;
+  /** The folder's own name, for the dialog title only. */
+  folder: string;
+  /** The design system's name if documents exist already; empty otherwise (the user names it). */
+  name: string;
+  documentationDirs: string[];
+  tokenDirs: string[];
+}
+
+export interface LinkRequest {
+  root: string;
+  name?: string;
+  documentationDir: string;
+  tokensDir?: string | null;
+  /** Make the tokens reachable from the documentation folder as `tokens/`, so DSDS-11 can check them. */
+  linkTokens?: boolean;
+}
+
+export interface LinkResult {
+  project: ProjectInfo;
+  /** Things that were skipped or need a look, shown after linking. */
+  warnings: string[];
 }
 
 export interface ProjectOverview {
   slug: string;
+  title: string | null;
   schemaVersion: string | null;
   pack: { version: string; exact: boolean } | null;
   documents: Array<{ path: string; format: DocumentFormat }>;

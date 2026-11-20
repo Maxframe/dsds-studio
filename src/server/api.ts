@@ -1,9 +1,11 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { Hono } from 'hono';
-import type { EditOp, RefTarget, ValidationResult } from '@shared/types';
+import type { EditOp, LinkRequest, RefTarget, ValidationResult } from '@shared/types';
 import { DsdsDocument } from './documents/document';
 import { applyOpsToFile, FileNotFound } from './documents/edit';
+import { inspectFolder, listFolders } from './links';
 import { listPacks, packForSchemaVersion, PACKS_DIR } from './packs';
 import { diffRevisions } from './projects/diff';
 import { stampChanged } from './projects/stamp';
@@ -50,6 +52,17 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
       headers: { 'content-type': 'application/json' },
     });
 
+  // What each document looked like the last time this app read or wrote it. A save of whole text
+  // (the code panel) is refused when the file on disk differs, for example after a `git pull`.
+  const seen = new Map<string, string>();
+  const seenKey = (slug: string, path: string) => `${slug}\0${path}`;
+  const digest = (text: string) => createHash('sha1').update(text).digest('hex');
+  const remember = (slug: string, path: string, text: string) =>
+    seen.set(seenKey(slug, path), digest(text));
+  const forget = (slug: string) => {
+    for (const k of [...seen.keys()]) if (k.startsWith(`${slug}\0`)) seen.delete(k);
+  };
+
   app.get('/api/health', (c) => c.json({ ok: true }));
   app.get('/api/packs', (c) => c.json(listPacks()));
 
@@ -62,6 +75,54 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
   });
 
   app.get('/api/projects', (c) => c.json(workspace.list()));
+
+  // The folder picker: subfolders of a folder on this machine. Only lists; opening a folder is
+  // a separate, explicit step (`POST /api/projects/link`).
+  app.get('/api/fs/folders', (c) => {
+    try {
+      return c.json(listFolders(c.req.query('path')));
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  });
+
+  // Suggestions for the setup dialog: where documents and tokens seem to be in a folder.
+  app.get('/api/fs/inspect', (c) => {
+    try {
+      return c.json(inspectFolder(c.req.query('path') ?? ''));
+    } catch (e) {
+      return fail((e as Error).message);
+    }
+  });
+
+  // Open a folder from anywhere on disk as a project (M3c).
+  app.post('/api/projects/link', async (c) => {
+    const body = (await c.req.json().catch(() => ({}))) as Partial<LinkRequest>;
+    const pack = listPacks()[0];
+    if (!pack) return fail('No schema pack installed. Run: npm run pack:add -- v0.23.1');
+    try {
+      const result = workspace.link(
+        {
+          root: typeof body.root === 'string' ? body.root : '',
+          name: typeof body.name === 'string' ? body.name : undefined,
+          documentationDir: typeof body.documentationDir === 'string' ? body.documentationDir : '.',
+          tokensDir: typeof body.tokensDir === 'string' ? body.tokensDir : null,
+          linkTokens: body.linkTokens === true,
+        },
+        pack.version,
+      );
+      return c.json(result, 201);
+    } catch (e) {
+      return fail((e as Error).message, /already/.test((e as Error).message) ? 409 : 400);
+    }
+  });
+
+  // Stop listing a linked folder. Its files and saved versions are left alone.
+  app.delete('/api/projects/:slug/link', (c) =>
+    workspace.unlink(c.req.param('slug'))
+      ? c.json({ unlinked: true })
+      : fail('That project is not a linked folder', 404),
+  );
 
   app.post('/api/projects', async (c) => {
     const { name, platforms } = (await c.req.json().catch(() => ({}))) as {
@@ -92,6 +153,7 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
       for (const [file, result] of project.validate(match.pack.version)) validation[file] = result;
     return c.json({
       slug: c.req.param('slug'),
+      title: project.title(),
       schemaVersion: project.schemaVersion,
       pack: match ? { version: match.pack.version, exact: match.exact } : null,
       documents: project.documents.map((d) => ({ path: d.path, format: d.format })),
@@ -139,7 +201,9 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     const abs = workspace.documentPath(c.req.param('slug'), c.req.query('path') ?? '');
     if (!abs) return fail('Invalid path', 400);
     try {
-      const doc = DsdsDocument.parse(readFileSync(abs, 'utf8'), undefined);
+      const raw = readFileSync(abs, 'utf8');
+      remember(c.req.param('slug'), c.req.query('path') ?? '', raw);
+      const doc = DsdsDocument.parse(raw, undefined);
       return c.json({ format: doc.format, text: doc.toText(), value: doc.toValue() });
     } catch {
       return fail('File not found', 404);
@@ -161,6 +225,7 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     } catch (e) {
       return fail((e as Error).message, e instanceof FileNotFound ? 404 : 400);
     }
+    remember(slug, path, text);
     const project = Project.load({ dir });
     const match = project.pack();
     const validation = match ? project.validate(match.pack.version).get(path) : undefined;
@@ -181,6 +246,13 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     if (typeof text !== 'string') return fail('text is required');
     const doc = DsdsDocument.parse(text);
     if (doc.parseErrors.length) return fail(`Does not parse: ${doc.parseErrors[0]}`);
+    const before = seen.get(seenKey(slug, path));
+    if (before && existsSync(abs) && digest(readFileSync(abs, 'utf8')) !== before) {
+      return fail(
+        'The file changed on disk since it was opened here (for example by a git pull). Nothing was overwritten: reload to see the current file.',
+        409,
+      );
+    }
     try {
       // The path was checked to be inside the project, so its folders may be created: a new file
       // can go in a subfolder that is not there yet.
@@ -189,6 +261,7 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     } catch (e) {
       return fail(`Could not save the file: ${(e as Error).message}`);
     }
+    remember(slug, path, text);
     const project = Project.load({ dir: workspace.dirOf(slug) as string });
     const match = project.pack();
     const validation = match ? project.validate(match.pack.version).get(path) : undefined;
@@ -199,6 +272,7 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
   app.delete('/api/projects/:slug/file', (c) => {
     try {
       const trashed = workspace.trash(c.req.param('slug'), c.req.query('path') ?? '');
+      forget(c.req.param('slug'));
       return c.json({ trashed });
     } catch (e) {
       return fail((e as Error).message, /not found/i.test((e as Error).message) ? 404 : 400);
@@ -257,6 +331,7 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     if (!isVersion(dir, id)) return fail('Version not found', 404);
     try {
       restoreVersion(dir, id);
+      forget(c.req.param('slug'));
     } catch (e) {
       const message = (e as Error).message;
       return fail(message, /unsaved changes|already match/i.test(message) ? 409 : 400);
@@ -281,7 +356,12 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
       saveVersion(dir, {
         label,
         tag,
-        beforeCommit: stamp ? () => void stampChanged(dir, label?.trim() ?? '') : undefined,
+        beforeCommit: stamp
+          ? () => {
+              stampChanged(dir, label?.trim() ?? '');
+              forget(c.req.param('slug'));
+            }
+          : undefined,
       });
     } catch (e) {
       const message = (e as Error).message;
@@ -290,13 +370,15 @@ export function createApi(workspace: Workspace = new Workspace()): Hono {
     return c.json({ ...draftOf(dir), suggestedTag: suggestedTag(dir) });
   });
 
-  // Go back to the last saved version. What is discarded is kept in a git stash.
+  // Go back to the last saved version. What is discarded is first saved as an automatic version.
   app.post('/api/projects/:slug/draft/discard', (c) => {
     const dir = workspace.dirOf(c.req.param('slug'));
     if (!dir) return fail('Project not found', 404);
     if (!hasVersion(dir)) return fail('There is no saved version to go back to yet', 409);
     try {
-      return c.json({ discarded: discardDraft(dir), ...draftOf(dir) });
+      const discarded = discardDraft(dir);
+      forget(c.req.param('slug'));
+      return c.json({ discarded, ...draftOf(dir) });
     } catch (e) {
       return fail((e as Error).message);
     }

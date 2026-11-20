@@ -75,7 +75,7 @@ export function DraftBar(props: {
             <ConfirmButton
               label="Discard changes"
               confirmLabel="Discard"
-              hint="Returns the files to the last version. The changes are kept in a git stash."
+              hint="Returns the files to the last version. A copy of the changes is kept in the history."
               onConfirm={props.onDiscard}
             />
           ) : null}

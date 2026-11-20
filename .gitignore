@@ -3,6 +3,9 @@ dist
 coverage
 .env
 *.log
-# User projects live here; each is its own git repo, not part of the app repo.
+# User projects live here, not part of the app repo.
 workspace/*
 !workspace/.gitkeep
+# Version snapshots of user projects (ADR 0006).
+data/*
+!data/.gitkeep

@@ -1,6 +1,6 @@
 # 0005: Versioning model: draft is the working tree, versions are git commits
 
-Status: accepted
+Status: superseded by 0006 (snapshots replace git; the diff and restore semantics carry over)
 
 ## Context
 

@@ -3,6 +3,10 @@ import type {
   DiffResult,
   EditOp,
   FileState,
+  FolderInspection,
+  FolderListing,
+  LinkRequest,
+  LinkResult,
   PackInfo,
   ProjectInfo,
   ProjectOverview,
@@ -31,6 +35,11 @@ export const api = {
   projects: () => call<ProjectInfo[]>('/api/projects'),
   createProject: (name: string, platforms: string[] = []) =>
     call<ProjectInfo>('/api/projects', post({ name, platforms })),
+  folders: (path?: string) => call<FolderListing>(`/api/fs/folders${path ? `?${q(path)}` : ''}`),
+  inspectFolder: (path: string) => call<FolderInspection>(`/api/fs/inspect?${q(path)}`),
+  linkProject: (req: LinkRequest) => call<LinkResult>('/api/projects/link', post(req)),
+  unlinkProject: (slug: string) =>
+    call<{ unlinked: boolean }>(`/api/projects/${slug}/link`, { method: 'DELETE' }),
   project: (slug: string) => call<ProjectOverview>(`/api/projects/${slug}`),
   targets: (slug: string) => call<RefTarget[]>(`/api/projects/${slug}/targets`),
   file: (slug: string, path: string) => call<FileState>(`/api/projects/${slug}/file?${q(path)}`),

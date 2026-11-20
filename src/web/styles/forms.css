@@ -36,6 +36,34 @@
   font-weight: var(--weight-medium);
   font-size: var(--text-small);
 }
+.field-label--help {
+  cursor: help;
+  text-decoration: underline dotted var(--color-text-muted);
+  text-underline-offset: var(--space-xs);
+}
+.field-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+.field-help-icon {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  cursor: help;
+  border-radius: var(--radius-control);
+}
+.field-help-icon:hover {
+  color: var(--color-text);
+}
+.field-help-icon:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-primary);
+  outline-offset: 1px;
+}
 .field-required {
   color: var(--color-error);
 }

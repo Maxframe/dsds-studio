@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApi } from '@server/api';
+import { SnapshotStore } from '@server/projects/snapshots';
 import { Workspace } from '@server/workspace';
 import { App } from '../src/web/App';
 import './dom-polyfills';
@@ -191,7 +198,7 @@ describe('app', () => {
     expect(screen.getByRole('button', { name: 'More actions for Button' })).toBeTruthy();
   });
 
-  it('settings change the colour scheme, theme and radius and are remembered', async () => {
+  it('settings change the colour scheme, theme, radius and field help and are remembered', async () => {
     localStorage.clear();
     const user = userEvent.setup();
     await openNewProject(user);
@@ -200,6 +207,8 @@ describe('app', () => {
     await user.click(screen.getByRole('radio', { name: 'Color scheme: dark' }));
     await user.click(screen.getByRole('radio', { name: 'Corner radius: large' }));
     await choose(user, screen.getByRole('combobox', { name: 'Theme' }), 'Stone');
+    await user.click(screen.getByRole('radio', { name: 'Field help: icon' }));
+    expect(root.getAttribute('data-help')).toBe('icon');
     expect(root.getAttribute('data-theme')).toBe('dark');
     expect(root.getAttribute('data-radius')).toBe('large');
     expect(root.getAttribute('data-base')).toBe('stone');
@@ -207,11 +216,13 @@ describe('app', () => {
       scheme: 'dark',
       base: 'stone',
       radius: 'large',
+      help: 'icon',
     });
     await user.click(screen.getByRole('radio', { name: 'Color scheme: system' }));
     expect(root.hasAttribute('data-theme')).toBe(false);
     localStorage.clear();
-    for (const a of ['data-theme', 'data-base', 'data-radius']) root.removeAttribute(a);
+    for (const a of ['data-theme', 'data-base', 'data-radius', 'data-help'])
+      root.removeAttribute(a);
   });
 
   it('shows the draft since the last version and discards it on request', async () => {
@@ -225,7 +236,7 @@ describe('app', () => {
     await user.tab();
     expect(await screen.findByText('Draft: 1 file changed', {}, { timeout: 5000 })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Discard changes' }));
-    expect(screen.getByText(/kept in a git stash/)).toBeTruthy();
+    expect(screen.getByText(/A copy of the changes is kept in the history/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(await screen.findByText('No unsaved changes', {}, { timeout: 5000 })).toBeTruthy();
     // The form shows the file as it was in the last version.
@@ -242,11 +253,18 @@ describe('app', () => {
     await user.tab();
     await screen.findByText('Draft: 1 file changed', {}, { timeout: 5000 });
   }
-  const gitLog = () =>
-    execFileSync('git', ['log', '--format=%s'], {
-      cwd: join(ws.root, 'demo-system'),
-      encoding: 'utf8',
-    });
+  const store = () => new SnapshotStore(join(ws.root, 'demo-system'));
+  /** Version labels, newest first, one per line. */
+  const versionLog = () =>
+    `${store()
+      .list()
+      .map((m) => m.label)
+      .join('\n')}\n`;
+  const tags = () =>
+    store()
+      .list()
+      .flatMap((m) => m.tags)
+      .join('\n');
 
   it('quicksaves the draft from the button and from Ctrl+S', async () => {
     const user = userEvent.setup();
@@ -254,12 +272,12 @@ describe('app', () => {
     await editName(user, 'One');
     await user.click(screen.getByRole('button', { name: 'Quicksave' }));
     expect(await screen.findByText('No unsaved changes', {}, { timeout: 5000 })).toBeTruthy();
-    expect(gitLog()).toMatch(/^Quicksave /);
+    expect(versionLog()).toMatch(/^Quicksave /);
     await editName(user, 'Two');
     await user.keyboard('{Control>}s{/Control}');
     expect(await screen.findByText('No unsaved changes', {}, { timeout: 5000 })).toBeTruthy();
     expect(
-      gitLog()
+      versionLog()
         .split('\n')
         .filter((l) => l.startsWith('Quicksave')),
     ).toHaveLength(2);
@@ -280,10 +298,8 @@ describe('app', () => {
     await user.type(screen.getByLabelText(/^Tag/), 'v1.0.0');
     await user.click(screen.getByRole('button', { name: 'Save version' }));
     expect(await screen.findByText('No unsaved changes', {}, { timeout: 5000 })).toBeTruthy();
-    expect(gitLog()).toMatch(/^First release/);
-    expect(
-      execFileSync('git', ['tag'], { cwd: join(ws.root, 'demo-system'), encoding: 'utf8' }),
-    ).toContain('v1.0.0');
+    expect(versionLog()).toMatch(/^First release/);
+    expect(tags()).toContain('v1.0.0');
   });
 
   it('lists the history with quicksaves folded away, and names and tags versions', async () => {
@@ -312,9 +328,7 @@ describe('app', () => {
     await user.clear(screen.getByLabelText('Tag name'));
     await user.type(screen.getByLabelText('Tag name'), 'v1{Enter}');
     expect(await screen.findByText('v1')).toBeTruthy();
-    expect(
-      execFileSync('git', ['tag'], { cwd: join(ws.root, 'demo-system'), encoding: 'utf8' }),
-    ).toContain('v1');
+    expect(tags()).toContain('v1');
   });
 
   it('reviews the draft entry by entry, and compares an earlier version from the history', async () => {
@@ -375,8 +389,8 @@ describe('app', () => {
         timeout: 5000,
       },
     );
-    expect(gitLog().split('\n')[0]).toBe('Restored “Initial version”');
-    expect(gitLog().trim().split('\n')).toHaveLength(3);
+    expect(versionLog().split('\n')[0]).toBe('Restored “Initial version”');
+    expect(versionLog().trim().split('\n')).toHaveLength(3);
   });
 
   it('asks what to do with unsaved changes before restoring', async () => {
@@ -404,7 +418,7 @@ describe('app', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Quicksave and restore' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5000 });
     await screen.findByText('No unsaved changes', {}, { timeout: 5000 });
-    const log = gitLog().trim().split('\n');
+    const log = versionLog().trim().split('\n');
     expect(log[0]).toBe('Restored “Initial version”');
     expect(log[1]).toMatch(/^Quicksave /);
   });
@@ -431,13 +445,8 @@ describe('app', () => {
       },
     );
     expect(screen.queryByDisplayValue('Unsaved')).toBeNull();
-    // The discarded work is still recoverable from the stash.
-    expect(
-      execFileSync('git', ['stash', 'list'], {
-        cwd: join(ws.root, 'demo-system'),
-        encoding: 'utf8',
-      }),
-    ).toContain('Discarded draft');
+    // The discarded work is still recoverable: it is an automatic version in the history.
+    expect(versionLog()).toContain('Before discarding changes');
   });
 
   it('stamps the changed entries with today’s date when saving a named version, unless unchecked', async () => {
@@ -1022,5 +1031,67 @@ entries:
       timeout: 5000,
     });
     expect(existsSync(join(dir, '.dsds-trash'))).toBe(true);
+  });
+});
+
+describe('opening a folder from elsewhere on disk', () => {
+  /** A design system repo with tokens deep inside and no documentation yet. */
+  const makeRepo = () => {
+    const repo = mkdtempSync(join(tmpdir(), 'dsds-repo-'));
+    mkdirSync(join(repo, 'src/themes'), { recursive: true });
+    writeFileSync(join(repo, 'src/themes/$themes.json'), '[]');
+    return repo;
+  };
+
+  it('picks a folder, suggests where the tokens are, and opens it as a project', async () => {
+    const repo = makeRepo();
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Open a folder…' }));
+    const path = await screen.findByLabelText('Folder path');
+    await user.clear(path);
+    await user.type(path, repo);
+    await user.click(screen.getByRole('button', { name: 'Go' }));
+    // The listing now shows the repo's subfolders.
+    expect(await screen.findByRole('button', { name: 'src' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Choose this folder' }));
+
+    // Setup: the token folder is suggested, the documentation folder defaults to documentation.
+    expect(await screen.findByDisplayValue('src/themes')).toBeTruthy();
+    expect(screen.getByDisplayValue('documentation')).toBeTruthy();
+    // The name is not taken from the folder: the button waits for one.
+    expect(
+      (screen.getByRole('button', { name: 'Open folder' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    await user.type(screen.getByLabelText('Name of the design system'), 'Demo System');
+    await user.click(screen.getByRole('button', { name: 'Open folder' }));
+
+    // The project opens, with its starter document written into the documentation folder.
+    await waitFor(
+      () => expect(screen.getAllByDisplayValue('Demo System').length).toBeGreaterThan(0),
+      { timeout: 5000 },
+    );
+    expect(lstatSync(join(repo, 'documentation/tokens')).isSymbolicLink()).toBe(true);
+    expect(await screen.findByText('No unsaved changes', {}, { timeout: 5000 })).toBeTruthy();
+  });
+
+  it('lists a linked folder with its path, and stops listing it on request', async () => {
+    const repo = makeRepo();
+    const res = await createApi(ws).request('/api/projects/link', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ root: repo, documentationDir: 'documentation', name: 'Linked DS' }),
+    });
+    expect(res.status).toBe(201);
+    const user = userEvent.setup();
+    render(<App />);
+    expect(
+      await screen.findByText(new RegExp(repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))),
+    ).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Stop listing linked-ds' }));
+    await user.click(screen.getByRole('button', { name: 'Stop listing' }));
+    await waitFor(() => expect(screen.queryByText(/documentation in documentation/)).toBeNull());
+    // The folder and its documents are untouched.
+    expect(existsSync(join(repo, 'documentation/linked-ds.dsds.yaml'))).toBe(true);
   });
 });

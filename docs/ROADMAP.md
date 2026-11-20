@@ -52,6 +52,42 @@ commits them with the local git CLI.
 - [x] Stamp `metadata.updated` (today, label as note) on changed entries when saving a named version
       (checkbox in the Save version popover, on by default; never for quicksaves)
 
+## M3b: Snapshot versioning (ADR 0006, replaces the git model of ADR 0005)
+
+Versions are app-owned snapshots of the project's documentation folder, stored in the data folder
+(`DSDS_DATA`, default `data/`), never in the project and never with git. The HTTP API keeps its shape.
+
+- [x] Snapshot store: content-addressed files plus a manifest per version (label, kind, tags, date,
+      restoredFrom); draft = current files compared with the latest version
+- [x] Saving, history, tag/name later, structural diff and restore run on the store; the diff reads
+      revisions from snapshots
+- [x] Discard and restore keep a copy first: an automatic snapshot of the unsaved state appears in the
+      history (as a folded quicksave), so a discard can be undone from the UI
+- [x] New projects get an "Initial version" snapshot instead of `git init`; existing projects start
+      without history (their `.git` folders are left alone)
+- [x] Docs: ADR 0006, ARCHITECTURE, CLAUDE.md rule 7
+
+## M3c: Link a folder that lives elsewhere (ADR 0007)
+
+Goal: work on the documentation inside a design system repo (tokens next to it) without Studio writing to that
+repo's git. Builds on M3b: versions cover the documentation folder only and live in the data folder.
+
+- [x] Open a folder from anywhere on disk: the server lists folders for a picker (the browser cannot
+      hand out real paths); the opened folders are kept in a registry in the data folder
+- [x] Setup dialog on first open: where the tokens are and where the documentation goes, with suggestions found
+      by looking for `$themes.json`/`tokens.json` and existing `.dsds.yaml` files; the documentation folder is
+      created with a starter document when it has none
+- [x] Studio-side configuration of the linked folders (token folder, documentation folder) in the registry
+- [x] Token sources resolve inside the project: an optional link `tokens/` in the documentation folder points
+      at the token folder, so DSDS-11 checks `./tokens/...` paths. Nothing is copied or snapshotted
+- [x] Detect a file changed from outside before overwriting it: a save of whole text (code panel) is
+      refused with a 409 when the file on disk differs from what the app last read or wrote
+- [x] List linked folders with their path, and stop listing one (files and versions stay)
+- [x] The project's name is the design system's name (its system entry), never the folder's: the list and
+      the toolbar show it, the setup dialog asks for it, and the id is made from it
+- [ ] Not done: writing the two paths into the folder's `AGENTS.md`. The dialog does not create files
+      in the repo beyond the starter document and the `tokens/` link; add the paths to `AGENTS.md` by hand
+
 ## Spec conformance pass
 
 From reading every spec page (Processing, Conformance, Stability, Interoperability, Security,

@@ -26,6 +26,10 @@ Seen in the browser while testing (not yet decided, say which you want):
 
 ## Done
 
+- Field help setting: Settings > Field help picks how a field's description is shown: below the
+  label (default), as a tooltip on an info icon next to the label, or as a tooltip while hovering
+  the label. Outside "below" mode the text stays in the DOM as `sr-only` for screen readers.
+
 - Add entry: each group title has a "+" that opens a name field (the kind is implied, Enter creates,
   Escape cancels); a "+" next to Files opens a panel with the kind combobox for kinds with no group
   yet.

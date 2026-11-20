@@ -9,10 +9,10 @@ import, export and revision history.
 
 ```
 src/web     React UI (Vite). Talks to the server over /api. Styled only by design tokens.
-src/server  Hono API. Owns filesystem, git, schema packs, validation, import/export.
+src/server  Hono API. Owns filesystem, snapshots, schema packs, validation, import/export.
 src/shared  Pure types and helpers used by both.
 packs/      Immutable vendored upstream releases, one folder per DSDS version.
-workspace/  User projects. Each is a folder of .dsds.yaml files and its own git repo.
+workspace/  User projects. Each is a folder of .dsds.yaml files. Its versions live in data/.
 ```
 
 ## Schema packs
@@ -45,8 +45,8 @@ Two independent things:
 
 - **Schema version:** the pack a document targets. Upgrading runs the pack's migration scripts
   (additive releases just bump `schemaVersion`) and is saved as a normal revision.
-- **Document revisions:** git, one repo per project in `workspace/`. Labelled commits, tags,
-  entry-level structural diff, restore.
+- **Document revisions:** app-owned snapshots of the documentation folder in the data folder (`DSDS_DATA`,
+  default `data/`), see ADR 0006. Labelled versions, tags, entry-level structural diff, restore. No git.
 
 ## Import / export
 

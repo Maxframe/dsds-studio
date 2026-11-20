@@ -25,7 +25,7 @@ import { SettingsMenu } from './SettingsMenu';
 import { IdChangeDialog, type IdChange } from './IdChangeDialog';
 import { Successors } from './Successors';
 import { UsedBy } from './UsedBy';
-import { useSettings } from './settings';
+import { HelpContext, useSettings } from './settings';
 import { ConfirmButton } from './ConfirmButton';
 import { IconButton } from './IconButton';
 import { DraftBar, type SaveInput } from './DraftBar';
@@ -671,87 +671,91 @@ export function ProjectView({ slug, onBack }: { slug: string; onBack(): void }) 
   );
 
   return (
-    <div
-      className={cn('project-shell', !panelOpen && 'project-shell--no-panel')}
-      style={
-        {
-          ...(widths.sidebar ? { '--layout-sidebar-width': `${widths.sidebar}px` } : {}),
-          ...(widths.panel ? { '--layout-panel-width': `${widths.panel}px` } : {}),
-        } as React.CSSProperties
-      }
-    >
-      <aside className="column column--sidebar">
-        <header className="toolbar">
-          <IconButton variant="ghost" size="icon" label="Back to projects" onClick={onBack}>
-            <ArrowLeft />
-          </IconButton>
-          <strong className="toolbar-title" title={slug}>
-            {slug}
-          </strong>
-          <SettingsMenu settings={settings} onChange={updateSettings} />
-        </header>
-        <div className="pane">
-          <DraftBar
-            slug={slug}
-            draft={draft}
-            onDiscard={() => void discardDraft()}
-            onQuicksave={quicksave}
-            onSaveVersion={saveVersion}
-            onRestore={restoreVersion}
-          />
-          <p className="muted">
-            Schema {overview.schemaVersion ?? '?'}
-            {overview.pack && !overview.pack.exact ? ` (using pack ${overview.pack.version})` : ''}
-          </p>
-          <EntryTree
-            overview={overview}
-            selection={selection}
-            onSelect={select}
-            bundle={bundle}
-            entryItems={nodes?.entryItems ?? null}
-            sharedItems={nodes?.sharedItems ?? null}
-            namespace={namespace}
-            apply={applyTo}
-            onRemove={(e) => void removeEntry(e)}
-            onDuplicate={(e) => void duplicateEntry(e)}
-          />
-        </div>
-      </aside>
-      <IdChangeDialog
-        change={idChange}
-        onCancel={() => void answerIdChange('cancel')}
-        onOnly={() => void answerIdChange('only')}
-        onUpdate={() => void answerIdChange('update')}
-      />
-      <Resizer side="left" label="Resize sidebar" onResize={resize('sidebar')} />
-      <main className="column">
-        <header className="toolbar">
-          {toolbarMain}
-          {panelOpen ? null : panelToggle}
-        </header>
-        <div className="pane">{editor}</div>
-      </main>
-      <Resizer side="right" label="Resize code panel" onResize={resize('panel')} />
-      <aside className="column column--right">
-        <header className="toolbar">{panelOpen ? panelToggle : null}</header>
-        {open ? (
-          <CodePanel
-            key={open.path}
-            text={open.state.text}
-            highlightPointer={yamlFocus}
-            targets={targets}
-            onEdit={onYamlEdit}
-            onCursorPointer={onYamlCursor}
-            onBlur={() => void flushYaml()}
-            status={yaml.status}
-          />
-        ) : (
-          <div className="code-panel" />
-        )}
-        <div className="validation-panel">
-          <ValidationPanel result={validation} onJump={jump} />
-        </div>
-      </aside>
-    </div>
+    <HelpContext.Provider value={settings.help}>
+      <div
+        className={cn('project-shell', !panelOpen && 'project-shell--no-panel')}
+        style={
+          {
+            ...(widths.sidebar ? { '--layout-sidebar-width': `${widths.sidebar}px` } : {}),
+            ...(widths.panel ? { '--layout-panel-width': `${widths.panel}px` } : {}),
+          } as React.CSSProperties
+        }
+      >
+        <aside className="column column--sidebar">
+          <header className="toolbar">
+            <IconButton variant="ghost" size="icon" label="Back to projects" onClick={onBack}>
+              <ArrowLeft />
+            </IconButton>
+            <strong className="toolbar-title" title={slug}>
+              {overview?.title ?? slug}
+            </strong>
+            <SettingsMenu settings={settings} onChange={updateSettings} />
+          </header>
+          <div className="pane">
+            <DraftBar
+              slug={slug}
+              draft={draft}
+              onDiscard={() => void discardDraft()}
+              onQuicksave={quicksave}
+              onSaveVersion={saveVersion}
+              onRestore={restoreVersion}
+            />
+            <p className="muted">
+              Schema {overview.schemaVersion ?? '?'}
+              {overview.pack && !overview.pack.exact
+                ? ` (using pack ${overview.pack.version})`
+                : ''}
+            </p>
+            <EntryTree
+              overview={overview}
+              selection={selection}
+              onSelect={select}
+              bundle={bundle}
+              entryItems={nodes?.entryItems ?? null}
+              sharedItems={nodes?.sharedItems ?? null}
+              namespace={namespace}
+              apply={applyTo}
+              onRemove={(e) => void removeEntry(e)}
+              onDuplicate={(e) => void duplicateEntry(e)}
+            />
+          </div>
+        </aside>
+        <IdChangeDialog
+          change={idChange}
+          onCancel={() => void answerIdChange('cancel')}
+          onOnly={() => void answerIdChange('only')}
+          onUpdate={() => void answerIdChange('update')}
+        />
+        <Resizer side="left" label="Resize sidebar" onResize={resize('sidebar')} />
+        <main className="column">
+          <header className="toolbar">
+            {toolbarMain}
+            {panelOpen ? null : panelToggle}
+          </header>
+          <div className="pane">{editor}</div>
+        </main>
+        <Resizer side="right" label="Resize code panel" onResize={resize('panel')} />
+        <aside className="column column--right">
+          <header className="toolbar">{panelOpen ? panelToggle : null}</header>
+          {open ? (
+            <CodePanel
+              key={open.path}
+              text={open.state.text}
+              highlightPointer={yamlFocus}
+              targets={targets}
+              onEdit={onYamlEdit}
+              onCursorPointer={onYamlCursor}
+              onBlur={() => void flushYaml()}
+              status={yaml.status}
+            />
+          ) : (
+            <div className="code-panel" />
+          )}
+          <div className="validation-panel">
+            <ValidationPanel result={validation} onJump={jump} />
+          </div>
+        </aside>
+      </div>
+    </HelpContext.Provider>
   );
 }

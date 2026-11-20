@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApi } from '@server/api';
+import { SnapshotStore, storeDirOf } from '@server/projects/snapshots';
 import { Workspace } from '@server/workspace';
 
 let ws: Workspace;
@@ -22,7 +22,10 @@ const rename = (value: string) =>
     `/api/projects/acme-design/file/ops?path=${file}`,
     json({ ops: [{ op: 'set', pointer: '/entries/0/name', value }] }),
   );
-const git = (...args: string[]) => execFileSync('git', args, { cwd: dir(), encoding: 'utf8' });
+const versions = async () => (await api.request('/api/projects/acme-design/versions')).json();
+const post = (path: string, body: unknown) =>
+  api.request(`/api/projects/acme-design/versions/${path}`, json(body));
+const forget = () => rmSync(storeDirOf(dir()), { recursive: true, force: true });
 
 beforeEach(async () => {
   ws = new Workspace(mkdtempSync(join(tmpdir(), 'dsds-draft-')));
@@ -33,7 +36,7 @@ beforeEach(async () => {
 describe('draft', () => {
   it('a new project starts with a first version and no draft', async () => {
     expect(await draft()).toEqual({ hasVersion: true, changed: [], suggestedTag: null });
-    expect(git('log', '--format=%s').trim()).toBe('Initial version');
+    expect((await versions()).map((v: { label: string }) => v.label)).toEqual(['Initial version']);
   });
 
   it('the draft is whatever differs from the last version', async () => {
@@ -53,7 +56,7 @@ describe('draft', () => {
     expect(changed).toEqual([{ path: 'extra.dsds.yaml', status: 'added' }]);
   });
 
-  it('discard returns the files to the last version and keeps them recoverable', async () => {
+  it('discard returns the files to the last version and keeps a copy in the history', async () => {
     await rename('Renamed');
     writeFileSync(join(dir(), 'extra.dsds.yaml'), 'kind: entry\nid: x\nname: X\ndescription: x\n');
     const res = await discard();
@@ -61,18 +64,23 @@ describe('draft', () => {
     expect(readFileSync(join(dir(), file), 'utf8')).not.toContain('Renamed');
     expect(existsSync(join(dir(), 'extra.dsds.yaml'))).toBe(false);
     expect(await draft()).toEqual({ hasVersion: true, changed: [], suggestedTag: null });
-    // Nothing is lost: the discarded changes sit in a git stash.
-    expect(git('stash', 'list')).toContain('Discarded draft');
-    expect(git('stash', 'show', '-p', '--include-untracked', 'stash@{0}')).toContain('Renamed');
+    // Nothing is lost: the discarded state is an automatic quicksave, and restoring it brings it back.
+    const [auto, first] = await versions();
+    expect(auto).toMatchObject({ kind: 'quicksave' });
+    expect(auto.label).toMatch(/^Before discarding changes /);
+    expect((await post(`${auto.id}/restore`, {})).status).toBe(200);
+    expect(readFileSync(join(dir(), file), 'utf8')).toContain('Renamed');
+    expect(existsSync(join(dir(), 'extra.dsds.yaml'))).toBe(true);
+    expect(first.label).toBe('Initial version');
   });
 
   it('discard with nothing to discard is a no-op', async () => {
     expect((await discard()).status).toBe(200);
-    expect(git('stash', 'list')).toBe('');
+    expect(await versions()).toHaveLength(1);
   });
 
   it('a project with no version yet reports it and cannot discard', async () => {
-    execFileSync('git', ['update-ref', '-d', 'HEAD'], { cwd: dir() });
+    forget();
     const state = await draft();
     expect(state.hasVersion).toBe(false);
     expect(state.changed.length).toBeGreaterThan(0);
@@ -85,7 +93,6 @@ describe('draft', () => {
 });
 
 const save = (body: unknown = {}) => api.request('/api/projects/acme-design/versions', json(body));
-const log = () => git('log', '--format=%s|%(trailers:key=DSDS-Kind,valueonly,separator=)').trim();
 
 describe('saving a version', () => {
   it('a quicksave commits the whole draft with a timestamp label', async () => {
@@ -95,17 +102,20 @@ describe('saving a version', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.changed).toEqual([]);
-    const [latest] = log().split('\n');
-    expect(latest).toMatch(/^Quicksave \d{4}-\d{2}-\d{2} \d{2}:\d{2}\|quicksave$/);
-    expect(git('show', '--name-only', '--format=', 'HEAD')).toContain('extra.dsds.yaml');
+    const [latest] = await versions();
+    expect(latest.label).toMatch(/^Quicksave \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+    expect(latest.kind).toBe('quicksave');
+    expect(Object.keys(new SnapshotStore(dir()).get(latest.id)?.files ?? {})).toContain(
+      'extra.dsds.yaml',
+    );
   });
 
   it('a named version has the given label, and an optional tag', async () => {
     await rename('Renamed');
     const res = await save({ label: 'First release', tag: '1.0.0' });
     expect(res.status).toBe(200);
-    expect(log().split('\n')[0]).toBe('First release|named');
-    expect(git('tag', '--points-at', 'HEAD').trim()).toBe('1.0.0');
+    const [latest] = await versions();
+    expect(latest).toMatchObject({ label: 'First release', kind: 'named', tags: ['1.0.0'] });
   });
 
   it('refuses when there is nothing to save', async () => {
@@ -120,7 +130,7 @@ describe('saving a version', () => {
     await rename('Renamed again');
     expect((await save({ label: 'v1 again', tag: 'v1' })).status).toBe(400);
     expect((await draft()).changed).toHaveLength(1);
-    expect(log().split('\n')).toHaveLength(2);
+    expect(await versions()).toHaveLength(2);
   });
 
   it('a tag needs a named version', async () => {
@@ -129,7 +139,7 @@ describe('saving a version', () => {
   });
 
   it('gives a project without any version its first one', async () => {
-    execFileSync('git', ['update-ref', '-d', 'HEAD'], { cwd: dir() });
+    forget();
     expect((await save({ label: 'Start' })).status).toBe(200);
     expect(await draft()).toMatchObject({ hasVersion: true, changed: [] });
   });
@@ -145,10 +155,6 @@ describe('saving a version', () => {
     expect((await draft()).suggestedTag).toBeNull();
   });
 });
-
-const versions = async () => (await api.request('/api/projects/acme-design/versions')).json();
-const post = (path: string, body: unknown) =>
-  api.request(`/api/projects/acme-design/versions/${path}`, json(body));
 
 describe('history', () => {
   it('lists versions newest first with kind, label and tags', async () => {
@@ -170,7 +176,7 @@ describe('history', () => {
   });
 
   it('is empty for a project with no version yet', async () => {
-    execFileSync('git', ['update-ref', '-d', 'HEAD'], { cwd: dir() });
+    forget();
     expect(await versions()).toEqual([]);
   });
 
@@ -190,11 +196,11 @@ describe('history', () => {
     await rename('One');
     await save();
     const [quick] = await versions();
-    const before = git('rev-parse', 'HEAD').trim();
+    const before = (await versions()).map((v: { id: string }) => v.id);
     expect((await post(`${quick.id}/name`, { label: 'Hero section' })).status).toBe(200);
     const [named] = await versions();
     expect(named).toMatchObject({ id: quick.id, label: 'Hero section', kind: 'named' });
-    expect(git('rev-parse', 'HEAD').trim()).toBe(before);
+    expect((await versions()).map((v: { id: string }) => v.id)).toEqual(before);
     expect((await post(`${quick.id}/name`, { label: '  ' })).status).toBe(400);
   });
 
@@ -248,9 +254,7 @@ describe('restoring a version', () => {
       'Initial version',
     ]);
     expect(list[0].kind).toBe('named');
-    expect(git('log', '-1', '--format=%(trailers:key=DSDS-Restored-From,valueonly)').trim()).toBe(
-      first,
-    );
+    expect(new SnapshotStore(dir()).list()[0]?.restoredFrom).toBe(first);
   });
 
   it('removes files the version did not have, and brings back ones it did', async () => {
@@ -362,7 +366,7 @@ describe('stamping changed entries when saving a named version', () => {
   });
 
   it('does not stamp the first version of a project', async () => {
-    execFileSync('git', ['update-ref', '-d', 'HEAD'], { cwd: dir() });
+    forget();
     await save({ label: 'Start', stamp: true });
     expect((await value()).entries[0].metadata).toBeUndefined();
   });

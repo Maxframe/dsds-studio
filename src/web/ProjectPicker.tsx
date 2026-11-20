@@ -4,6 +4,8 @@ import type { PackInfo, ProjectInfo } from '@shared/types';
 import { api } from './api';
 import { Button } from '@web/components/ui/button';
 import { Input } from '@web/components/ui/input';
+import { ConfirmButton } from './ConfirmButton';
+import { OpenFolder } from './OpenFolder';
 
 export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
   const [projects, setProjects] = useState<ProjectInfo[] | null>(null);
@@ -11,12 +13,15 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
   const [name, setName] = useState('');
   const [platformsText, setPlatformsText] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
+  const [opening, setOpening] = useState(false);
+  const reload = () =>
     api
       .projects()
       .then(setProjects)
       .catch((e: Error) => setError(e.message));
+
+  useEffect(() => {
+    void reload();
     api
       .packs()
       .then(setPacks)
@@ -48,19 +53,51 @@ export function ProjectPicker({ onOpen }: { onOpen(slug: string): void }) {
       {projects?.length === 0 ? <p className="muted">No projects yet. Create one below.</p> : null}
       <div className="stack">
         {projects?.map((p) => (
-          <button
-            key={p.slug}
-            type="button"
-            className="tree-item card"
-            onClick={() => onOpen(p.slug)}
-          >
-            <strong>{p.slug}</strong>
-            <span className="muted">
-              {p.documents} document{p.documents === 1 ? '' : 's'}
-            </span>
-          </button>
+          <div key={p.slug} className="row">
+            <button type="button" className="tree-item card" onClick={() => onOpen(p.slug)}>
+              <span>
+                <strong>{p.title ?? p.slug}</strong>
+                {p.title || p.linked ? (
+                  <span className="muted block">
+                    {[
+                      p.slug,
+                      p.linked?.root,
+                      p.linked?.documentationDir
+                        ? `documentation in ${p.linked.documentationDir}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </span>
+                ) : null}
+              </span>
+              <span className="muted">
+                {p.documents} document{p.documents === 1 ? '' : 's'}
+              </span>
+            </button>
+            {p.linked ? (
+              <ConfirmButton
+                compact
+                label={`Stop listing ${p.slug}`}
+                confirmLabel="Stop listing"
+                hint="Only removes it from this list. The folder and its saved versions stay."
+                onConfirm={() =>
+                  void api
+                    .unlinkProject(p.slug)
+                    .then(reload)
+                    .catch((e: Error) => setError(e.message))
+                }
+              />
+            ) : null}
+          </div>
         ))}
       </div>
+      <p>
+        <Button variant="secondary" onClick={() => setOpening(true)}>
+          Open a folder…
+        </Button>
+      </p>
+      <OpenFolder open={opening} onClose={() => setOpening(false)} onOpen={onOpen} />
 
       <h2>New project</h2>
       <form
