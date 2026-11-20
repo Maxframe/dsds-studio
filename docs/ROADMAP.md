@@ -120,6 +120,18 @@ Examples, Style guide, AGENTS.md, manifest, CHANGELOG) and comparing the app. So
       added by an Add button [Examples page] (`tests/form-smoke.test.tsx`; blank strings are the
       deliberate starter for required text, so only `null` and `{}` count as empty)
 
+## M3d: Navigate large projects
+
+- [x] Group tree entries by shared id prefix (`ob.s.color.status.*`) into collapsible groups: segments
+      split on `.` and `/`, single-child levels folded into one label, a lone entry stays a plain row,
+      groups start closed and open on selection, each group shows its count and summed findings
+      (`src/shared/idTree.ts`, `tests/id-tree.test.ts`, `tests/entry-tree.test.tsx`; ADR 0008)
+- [x] Filter field above the tree (shadcn InputGroup): every word must appear in an entry's id, name or
+      kind; matching groups open while it is set; Escape or the clear button restores the tree
+- [ ] Open/closed state of tree groups remembered per project
+- [ ] Quick-open palette (Ctrl+K) to jump to any entry by id or name
+- [ ] Tokens without an entry: list the token files' tokens that no entry documents (linked folders)
+
 ## M4: Import / export / migration
 
 - [ ] Import file / paste / folder / zip

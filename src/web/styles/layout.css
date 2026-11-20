@@ -449,3 +449,28 @@
 .resizer:focus-visible {
   outline: none;
 }
+/* A group of entries that share an id prefix: its rows sit one step in from the group's heading. */
+.tree-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+.tree-nest {
+  padding-left: var(--space-md);
+}
+.tree-search {
+  margin-bottom: var(--space-sm);
+}
+.tree-empty {
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-small);
+  color: var(--color-text-muted);
+}
+/* A folder row is a button, which does not inherit the page's type; give it the entry rows' size. */
+.tree-row .tree-folder {
+  font-family: inherit;
+  font-size: var(--text-small);
+  font-weight: var(--weight-normal);
+  line-height: 1.43;
+}

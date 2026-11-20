@@ -8,7 +8,10 @@ import {
   CollapsibleTrigger,
 } from '@web/components/ui/collapsible';
 import { EntryMenu } from './EntryMenu';
+import { IdNodes } from './IdGroup';
+import { TreeSearch } from './TreeSearch';
 import { IconButton } from './IconButton';
+import { buildIdTree, matchesQuery, pathTo } from '@shared/idTree';
 import { kindLabels } from '@shared/namespaced';
 import { insertOps, listRanker } from '@shared/order';
 import { AddEntryPanel, NewEntryInput } from './NewEntry';
@@ -189,12 +192,93 @@ export function EntryTree(props: {
   };
 
   // A custom kind is shown by its own name, without the namespace the schema requires.
-  const groups = groupEntries(overview.entries);
-  const labels = kindLabels(groups.map(([g]) => g));
+  const labels = kindLabels(groupEntries(overview.entries).map(([g]) => g));
   const labelOf = (group: string) => labels.get(group) ?? group;
+
+  // The filter narrows the entries; while it is set every group is open so the matches show.
+  const [query, setQuery] = useState('');
+  const filtering = query.trim() !== '';
+  const shown = filtering
+    ? overview.entries.filter((e) => matchesQuery(e, query))
+    : overview.entries;
+  const groups = groupEntries(shown).map(
+    ([kind, entries]) => [kind, entries, buildIdTree(entries, (e) => e.id)] as const,
+  );
+
+  // Id groups start closed; a kind group starts open. What the user toggled is kept here.
+  const [openIds, setOpenIds] = useState<ReadonlySet<string>>(new Set());
+  const [closedKinds, setClosedKinds] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (set: ReadonlySet<string>, key: string, on: boolean) => {
+    const next = new Set(set);
+    if (on) next.add(key);
+    else next.delete(key);
+    return next;
+  };
+
+  // Selecting an entry (from a link, a search or the code panel) opens the groups that hold it.
+  const selectedKey = selection?.type === 'entry' ? `${selection.file}${selection.pointer}` : null;
+  // Adjusted while rendering, once per selection, so a group the user closes afterwards stays closed.
+  const [openedFor, setOpenedFor] = useState<string | null>(null);
+  if (selectedKey !== openedFor) {
+    setOpenedFor(selectedKey);
+    const entry = selectedKey
+      ? overview.entries.find((e) => `${e.file}${e.pointer}` === selectedKey)
+      : undefined;
+    if (entry) {
+      const kindOf = (e: EntrySummary) => (e.origin === 'shared' ? 'shared' : (e.kind ?? 'entry'));
+      const same = overview.entries.filter((e) => kindOf(e) === kindOf(entry));
+      const path = pathTo(
+        buildIdTree(same, (e) => e.id),
+        (e) => e === entry,
+      );
+      if (path?.length) setOpenIds(new Set([...openIds, ...path]));
+      if (closedKinds.has(kindOf(entry))) setClosedKinds(toggle(closedKinds, kindOf(entry), false));
+    }
+  }
+
+  const findingsOf = (entries: EntrySummary[]) =>
+    entries.reduce(
+      (sum, e) => {
+        const c = counts(overview.validation[e.file], e.pointer);
+        return { errors: sum.errors + c.errors, warnings: sum.warnings + c.warnings };
+      },
+      { errors: 0, warnings: 0 },
+    );
+
+  const renderEntry = (e: EntrySummary) => {
+    const sel: Selection = { type: 'entry', file: e.file, pointer: e.pointer, origin: e.origin };
+    const c = counts(overview.validation[e.file], e.pointer);
+    return (
+      <div
+        key={`${e.file}${e.pointer}`}
+        className={cn('tree-row', sameSelection(selection, sel) && 'tree-row--active')}
+      >
+        <TreeButton
+          active={sameSelection(selection, sel)}
+          title={e.id}
+          onClick={() => onSelect(sel)}
+        >
+          <span className="truncate">{e.name ?? e.id}</span>
+          {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
+          {!c.errors && c.warnings ? (
+            <span className="badge badge--warning">{c.warnings}</span>
+          ) : null}
+        </TreeButton>
+        <span className="tree-row-actions">
+          <EntryMenu
+            name={e.name ?? e.id}
+            removeHint={removeHint(e)}
+            onDuplicate={() => props.onDuplicate(e)}
+            onRemove={() => props.onRemove(e)}
+          />
+        </span>
+      </div>
+    );
+  };
 
   return (
     <div>
+      <TreeSearch value={query} onChange={setQuery} />
       <div className="tree-group tree-rows">
         {canAdd ? (
           <div className={cn('tree-row', adding === 'panel' && 'tree-row--open')}>
@@ -221,7 +305,7 @@ export function EntryTree(props: {
             error={error}
           />
         ) : null}
-        {documents.map((d, i) => {
+        {(filtering ? [] : documents).map((d, i) => {
           const sel: Selection = { type: 'document', file: d.path };
           const c = counts(overview.validation[d.path], '');
           return (
@@ -246,10 +330,17 @@ export function EntryTree(props: {
         })}
       </div>
 
-      {groups.map(([group, entries]) => (
+      {filtering && groups.length === 0 ? (
+        <p className="tree-empty" role="status">
+          No entries match “{query.trim()}”.
+        </p>
+      ) : null}
+
+      {groups.map(([group, , nodes]) => (
         <Collapsible
           key={group}
-          defaultOpen
+          open={filtering || !closedKinds.has(group)}
+          onOpenChange={(o) => setClosedKinds((prev) => toggle(prev, group, !o))}
           className="tree-group"
           role="group"
           aria-labelledby={`tree-group-${group}`}
@@ -284,40 +375,14 @@ export function EntryTree(props: {
           ) : null}
           <CollapsibleContent>
             <div className="tree-rows">
-              {entries.map((e) => {
-                const sel: Selection = {
-                  type: 'entry',
-                  file: e.file,
-                  pointer: e.pointer,
-                  origin: e.origin,
-                };
-                const c = counts(overview.validation[e.file], e.pointer);
-                return (
-                  <div
-                    key={`${e.file}${e.pointer}`}
-                    className={cn('tree-row', sameSelection(selection, sel) && 'tree-row--active')}
-                  >
-                    <TreeButton
-                      active={sameSelection(selection, sel)}
-                      onClick={() => onSelect(sel)}
-                    >
-                      <span className="truncate">{e.name ?? e.id}</span>
-                      {c.errors ? <span className="badge badge--error">{c.errors}</span> : null}
-                      {!c.errors && c.warnings ? (
-                        <span className="badge badge--warning">{c.warnings}</span>
-                      ) : null}
-                    </TreeButton>
-                    <span className="tree-row-actions">
-                      <EntryMenu
-                        name={e.name ?? e.id}
-                        removeHint={removeHint(e)}
-                        onDuplicate={() => props.onDuplicate(e)}
-                        onRemove={() => props.onRemove(e)}
-                      />
-                    </span>
-                  </div>
-                );
-              })}
+              <IdNodes
+                nodes={nodes}
+                open={openIds}
+                forceOpen={filtering}
+                onToggle={(key, on) => setOpenIds((prev) => toggle(prev, key, on))}
+                findings={findingsOf}
+                renderEntry={renderEntry}
+              />
             </div>
           </CollapsibleContent>
         </Collapsible>
