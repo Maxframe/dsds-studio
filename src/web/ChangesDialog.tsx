@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { DiffResult, EntryChange } from '@shared/types';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -103,15 +104,17 @@ export function ChangesDialog(props: {
             {diff && diff.entries.length > 0 ? ' · compared with the files as they are now' : ''}
           </DialogDescription>
         </DialogHeader>
-        {error ? <p className="field-note field-note--error">{error}</p> : null}
-        {!diff && !error ? <p className="muted">Comparing…</p> : null}
-        {diff && diff.entries.length > 0 ? (
-          <ul className="diff-list">
-            {diff.entries.map((e) => (
-              <Entry key={e.key} e={e} kinds={kinds} />
-            ))}
-          </ul>
-        ) : null}
+        <DialogBody>
+          {error ? <p className="field-note field-note--error">{error}</p> : null}
+          {!diff && !error ? <p className="muted">Comparing…</p> : null}
+          {diff && diff.entries.length > 0 ? (
+            <ul className="diff-list">
+              {diff.entries.map((e) => (
+                <Entry key={e.key} e={e} kinds={kinds} />
+              ))}
+            </ul>
+          ) : null}
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

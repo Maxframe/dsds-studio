@@ -3,7 +3,9 @@ import type { DraftState, VersionInfo } from '@shared/types';
 import { Button } from '@web/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -59,14 +61,16 @@ export function RestoreDialog(props: {
             deleted from the history.
           </DialogDescription>
         </DialogHeader>
-        {changed > 0 ? (
-          <p className="field-note field-note--error" role="alert">
-            You have unsaved changes in {changed} file{changed === 1 ? '' : 's'}. Quicksave them
-            first, or discard them (a copy is kept in the history).
-          </p>
-        ) : null}
-        {error ? <p className="field-note field-note--error">{error}</p> : null}
-        <div className="flex flex-wrap justify-end gap-2">
+        <DialogBody>
+          {changed > 0 ? (
+            <p className="field-note field-note--error" role="alert">
+              You have unsaved changes in {changed} file{changed === 1 ? '' : 's'}. Quicksave them
+              first, or discard them (a copy is kept in the history).
+            </p>
+          ) : null}
+          {error ? <p className="field-note field-note--error">{error}</p> : null}
+        </DialogBody>
+        <DialogFooter>
           <Button variant="ghost" disabled={busy} onClick={props.onClose}>
             Cancel
           </Button>
@@ -84,7 +88,7 @@ export function RestoreDialog(props: {
               Restore
             </Button>
           )}
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -5,8 +5,10 @@ import { Button } from '@web/components/ui/button';
 import { Checkbox } from '@web/components/ui/checkbox';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@web/components/ui/dialog';
@@ -87,30 +89,32 @@ function Pick({ onChoose }: { onChoose(path: string): void }) {
         </Button>
       </form>
       {error ? <p className="field-note field-note--error">{error}</p> : null}
-      {listing ? (
-        <nav className="stack" aria-label="Folders">
-          {listing.parent ? (
-            <button
-              type="button"
-              className="tree-item"
-              onClick={() => void go(listing.parent ?? undefined)}
-            >
-              ↑ Up
-            </button>
-          ) : null}
-          {listing.folders.map((f) => (
-            <button
-              key={f.path}
-              type="button"
-              className="tree-item"
-              onClick={() => void go(f.path)}
-            >
-              {f.name}
-            </button>
-          ))}
-          {listing.folders.length === 0 ? <p className="muted">No subfolders.</p> : null}
-        </nav>
-      ) : null}
+      <DialogBody>
+        {listing ? (
+          <nav className="stack" aria-label="Folders">
+            {listing.parent ? (
+              <button
+                type="button"
+                className="tree-item"
+                onClick={() => void go(listing.parent ?? undefined)}
+              >
+                ↑ Up
+              </button>
+            ) : null}
+            {listing.folders.map((f) => (
+              <button
+                key={f.path}
+                type="button"
+                className="tree-item"
+                onClick={() => void go(f.path)}
+              >
+                {f.name}
+              </button>
+            ))}
+            {listing.folders.length === 0 ? <p className="muted">No subfolders.</p> : null}
+          </nav>
+        ) : null}
+      </DialogBody>
       <Button disabled={!listing} onClick={() => listing && onChoose(listing.path)}>
         Choose this folder
       </Button>
@@ -196,66 +200,68 @@ function Setup(props: { root: string; onBack(): void; onOpen(slug: string): void
         <DialogDescription>{props.root}</DialogDescription>
       </DialogHeader>
       <form
-        className="stack"
+        className="flex min-h-0 flex-col gap-4"
         onSubmit={(e) => {
           e.preventDefault();
           void submit();
         }}
       >
-        <label className="stack">
-          Name of the design system
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="for example Oblique"
-          />
-        </label>
-        <p className="field-note">
-          Shown in the project list. It does not come from the folder name.
-        </p>
-        <label className="stack">
-          Documentation folder
-          <Input
-            value={documentationDir}
-            onChange={(e) => setDocumentationDir(e.target.value)}
-            placeholder="documentation"
-          />
-        </label>
-        <p className="field-note">
-          The DSDS documents go here, relative to the folder. It is created if missing. Saved
-          versions cover this folder only. Use <code>.</code> for the folder itself.
-        </p>
-        {choices('Documents found in', found?.documentationDirs ?? [], setDocumentationDir)}
-        <label className="stack">
-          Token folder (optional)
-          <Input value={tokensDir} onChange={(e) => setTokensDir(e.target.value)} />
-        </label>
-        {choices('Tokens found in', found?.tokenDirs ?? [], setTokensDir)}
-        <label className="flex items-start gap-2 text-sm">
-          <Checkbox
-            checked={linkTokens}
-            onCheckedChange={(v) => setLinkTokens(v === true)}
-            className="mt-0.5"
-            aria-label="Link the tokens into the documentation folder"
-          />
-          <span>
-            Link the tokens into the documentation folder
-            <span className="block text-xs text-muted-foreground">
-              Adds a link <code>tokens/</code> in the documentation folder, so a source such as{' '}
-              <code>./tokens/color.json#/color/red</code> can be checked by the validator. It is the
-              only thing outside your documents that Studio creates.
+        <DialogBody className="stack block">
+          <label className="stack">
+            Name of the design system
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="for example Oblique"
+            />
+          </label>
+          <p className="field-note">
+            Shown in the project list. It does not come from the folder name.
+          </p>
+          <label className="stack">
+            Documentation folder
+            <Input
+              value={documentationDir}
+              onChange={(e) => setDocumentationDir(e.target.value)}
+              placeholder="documentation"
+            />
+          </label>
+          <p className="field-note">
+            The DSDS documents go here, relative to the folder. It is created if missing. Saved
+            versions cover this folder only. Use <code>.</code> for the folder itself.
+          </p>
+          {choices('Documents found in', found?.documentationDirs ?? [], setDocumentationDir)}
+          <label className="stack">
+            Token folder (optional)
+            <Input value={tokensDir} onChange={(e) => setTokensDir(e.target.value)} />
+          </label>
+          {choices('Tokens found in', found?.tokenDirs ?? [], setTokensDir)}
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={linkTokens}
+              onCheckedChange={(v) => setLinkTokens(v === true)}
+              className="mt-0.5"
+              aria-label="Link the tokens into the documentation folder"
+            />
+            <span>
+              Link the tokens into the documentation folder
+              <span className="block text-xs text-muted-foreground">
+                Adds a link <code>tokens/</code> in the documentation folder, so a source such as{' '}
+                <code>./tokens/color.json#/color/red</code> can be checked by the validator. It is
+                the only thing outside your documents that Studio creates.
+              </span>
             </span>
-          </span>
-        </label>
-        {error ? <p className="field-note field-note--error">{error}</p> : null}
-        <div className="row">
+          </label>
+          {error ? <p className="field-note field-note--error">{error}</p> : null}
+        </DialogBody>
+        <DialogFooter className="justify-start">
           <Button type="button" variant="secondary" onClick={props.onBack}>
             Back
           </Button>
           <Button type="submit" disabled={busy || !found || !name.trim()}>
             Open folder
           </Button>
-        </div>
+        </DialogFooter>
       </form>
     </>
   );

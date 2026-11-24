@@ -1,7 +1,9 @@
 import { Button } from '@web/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
+  DialogFooter,
   DialogDescription,
   DialogHeader,
   DialogTitle,
@@ -41,10 +43,12 @@ export function IdChangeDialog(props: {
             something, change its name instead; the id stays.
           </DialogDescription>
         </DialogHeader>
-        <p className="field-note">
-          Links written inside text, like dsds:{change?.from}, are not updated either way.
-        </p>
-        <div className="flex flex-wrap justify-end gap-2">
+        <DialogBody>
+          <p className="field-note">
+            Links written inside text, like dsds:{change?.from}, are not updated either way.
+          </p>
+        </DialogBody>
+        <DialogFooter>
           <Button variant="ghost" onClick={props.onCancel}>
             Cancel
           </Button>
@@ -54,7 +58,7 @@ export function IdChangeDialog(props: {
           <Button onClick={props.onUpdate}>
             Change id and update {change?.count} pointer{change?.count === 1 ? '' : 's'}
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

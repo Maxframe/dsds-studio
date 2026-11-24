@@ -41,7 +41,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid max-h-11/12 w-full max-w-11/12 -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg outline-none sm:max-w-lg',
+          'fixed top-1/2 left-1/2 z-50 flex max-h-11/12 flex-col overflow-hidden w-full max-w-11/12 -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg outline-none sm:max-w-lg',
           className,
         )}
         {...props}
@@ -66,7 +66,29 @@ export function DialogHeader({ className, ...props }: ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-left', className)}
+      className={cn('flex shrink-0 flex-col gap-2 text-left', className)}
+      {...props}
+    />
+  );
+}
+
+/** The part of a dialog that scrolls when the content is taller than the screen. */
+export function DialogBody({ className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn('flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto', className)}
+      {...props}
+    />
+  );
+}
+
+/** Actions stay pinned at the bottom of a dialog. */
+export function DialogFooter({ className, ...props }: ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-footer"
+      className={cn('flex shrink-0 flex-wrap justify-end gap-2', className)}
       {...props}
     />
   );
