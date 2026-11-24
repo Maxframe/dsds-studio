@@ -38,8 +38,6 @@
 }
 .field-label--help {
   cursor: help;
-  text-decoration: underline dotted var(--color-text-muted);
-  text-underline-offset: var(--space-xs);
 }
 .field-title {
   display: inline-flex;
